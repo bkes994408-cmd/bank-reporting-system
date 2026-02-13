@@ -1,6 +1,12 @@
 # Build outputs
 **/bin/
 **/obj/
+**/dist/
 .vs/
+
+# Node
+**/node_modules/
+**/.npm/
+
 # OS
 .DS_Store

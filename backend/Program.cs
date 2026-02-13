@@ -35,7 +35,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// In container/local dev we typically run behind a reverse proxy over plain HTTP.
+// Keep HTTPS redirection for non-development environments.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors("AllowFrontend");
 app.UseAuthorization();
 app.MapControllers();
