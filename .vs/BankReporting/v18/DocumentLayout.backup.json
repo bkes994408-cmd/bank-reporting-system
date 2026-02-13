@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\\u4E0B\u8F09\\bank-reporting-system\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{B2C3D4E5-F6A7-8901-BCDE-F12345678901}|backend.tests\\BankReporting.Tests.csproj|d:\\\u4E0B\u8F09\\bank-reporting-system\\backend.tests\\controllerstests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{B2C3D4E5-F6A7-8901-BCDE-F12345678901}|backend.tests\\BankReporting.Tests.csproj|solutionrelative:backend.tests\\controllerstests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}|backend\\BankReporting.Api.csproj|d:\\\u4E0B\u8F09\\bank-reporting-system\\backend\\controllers\\keyscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}|backend\\BankReporting.Api.csproj|solutionrelative:backend\\controllers\\keyscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "ControllersTests.cs",
+              "DocumentMoniker": "D:\\\u4E0B\u8F09\\bank-reporting-system\\backend.tests\\ControllersTests.cs",
+              "RelativeDocumentMoniker": "backend.tests\\ControllersTests.cs",
+              "ToolTip": "D:\\\u4E0B\u8F09\\bank-reporting-system\\backend.tests\\ControllersTests.cs",
+              "RelativeToolTip": "backend.tests\\ControllersTests.cs",
+              "ViewState": "AgIAADMBAAAAAAAAAAAlwEkBAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-05T13:42:29.081Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "KeysController.cs",
+              "DocumentMoniker": "D:\\\u4E0B\u8F09\\bank-reporting-system\\backend\\Controllers\\KeysController.cs",
+              "RelativeDocumentMoniker": "backend\\Controllers\\KeysController.cs",
+              "ToolTip": "D:\\\u4E0B\u8F09\\bank-reporting-system\\backend\\Controllers\\KeysController.cs",
+              "RelativeToolTip": "backend\\Controllers\\KeysController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-05T13:42:01.042Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

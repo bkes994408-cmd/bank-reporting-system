@@ -1,0 +1,103 @@
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// Request interceptor
+api.interceptors.request.use(
+  config => {
+    return config
+  },
+  error => {
+    return Promise.reject(error)
+  }
+)
+
+// Response interceptor
+api.interceptors.response.use(
+  response => response.data,
+  error => {
+    console.error('API Error:', error)
+    return Promise.reject(error)
+  }
+)
+
+// Parsing APIs
+export const parseExcel = (formData) => {
+  return api.post('/parsing/excel', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export const parseExcelWithContact = (formData) => {
+  return api.post('/parsing/excel-with-contact', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+// Declare APIs
+export const declare = (data) => {
+  return api.post('/declare', data)
+}
+
+export const getDeclareResult = (data) => {
+  return api.post('/declare/result', data)
+}
+
+// Reports APIs
+export const getMonthlyReports = (data) => {
+  return api.post('/reports', data)
+}
+
+export const getReportHistories = (data) => {
+  return api.post('/reports/histories', data)
+}
+
+// Keys APIs
+export const importKeys = (data) => {
+  return api.post('/keys/import', data)
+}
+
+export const validateKeys = () => {
+  return api.post('/keys/validate')
+}
+
+// Token APIs
+export const updateToken = (data) => {
+  return api.post('/token/update', data)
+}
+
+// News APIs
+export const getNews = (data) => {
+  return api.post('/news', data)
+}
+
+export const downloadAttachment = (data) => {
+  return api.post('/news/attachments', data, {
+    responseType: 'blob'
+  })
+}
+
+// System APIs
+export const checkVersion = () => {
+  return api.get('/check-version')
+}
+
+export const getInfo = () => {
+  return api.get('/info')
+}
+
+export const getSettings = () => {
+  return api.get('/settings')
+}
+
+export const updateSettings = (data) => {
+  return api.post('/settings', data)
+}
+
+export default api

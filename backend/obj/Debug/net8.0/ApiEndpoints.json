@@ -1,0 +1,278 @@
+[
+  {
+    "ContainingType": "BankReporting.Api.Controllers.SystemController",
+    "Method": "CheckVersion",
+    "RelativePath": "api/check-version",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.DeclareController",
+    "Method": "Declare",
+    "RelativePath": "api/declare",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.DeclareRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.DeclareController",
+    "Method": "GetDeclareResult",
+    "RelativePath": "api/declare/result",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.DeclareResultRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.SystemController",
+    "Method": "GetInfo",
+    "RelativePath": "api/info",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.KeysController",
+    "Method": "ImportKeys",
+    "RelativePath": "api/keys/import",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.ImportKeysRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.KeysController",
+    "Method": "ValidateKeys",
+    "RelativePath": "api/keys/validate",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.NewsController",
+    "Method": "GetNews",
+    "RelativePath": "api/news",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.NewsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.NewsController",
+    "Method": "DownloadAttachment",
+    "RelativePath": "api/news/attachments",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.AttachmentDownloadRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.ParsingController",
+    "Method": "ParseExcel",
+    "RelativePath": "api/parsing/excel",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ReportId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "UploadFile",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.ParsingController",
+    "Method": "ParseExcelWithContact",
+    "RelativePath": "api/parsing/excel-with-contact",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "BankCode",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "BankName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ReportYear",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ReportMonth",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContractorName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContractorTel",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContractorEmail",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ManagerName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ManagerTel",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ManagerEmail",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ReportId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "UploadFile",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.ReportsController",
+    "Method": "GetMonthlyReports",
+    "RelativePath": "api/reports",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.MonthlyReportsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.ReportsController",
+    "Method": "GetReportHistories",
+    "RelativePath": "api/reports/histories",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.ReportHistoriesRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.SystemController",
+    "Method": "GetSettings",
+    "RelativePath": "api/settings",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.SystemController",
+    "Method": "UpdateSettings",
+    "RelativePath": "api/settings",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.Controllers.SystemSettingsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "BankReporting.Api.Controllers.TokenController",
+    "Method": "UpdateToken",
+    "RelativePath": "api/token/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "BankReporting.Api.DTOs.UpdateTokenRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]
