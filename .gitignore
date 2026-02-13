@@ -1,0 +1,6 @@
+# Build outputs
+**/bin/
+**/obj/
+.vs/
+# OS
+.DS_Store
