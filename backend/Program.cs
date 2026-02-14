@@ -35,9 +35,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Test"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors("AllowFrontend");
 app.UseAuthorization();
+
+// Basic health check endpoint for load balancers / monitoring
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
 app.MapControllers();
 
 app.Run();
