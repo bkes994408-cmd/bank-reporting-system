@@ -4,8 +4,11 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      # Default to Production; override by setting ASPNETCORE_ENVIRONMENT in your shell or a .env file.
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
+      # Optional: override to disable HTTPS redirect when running behind a TLS-terminating reverse proxy
+      # ENABLE_HTTPS_REDIRECT: "false"
     ports:
       - "8080:8080"
 

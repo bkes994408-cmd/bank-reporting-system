@@ -1,4 +1,5 @@
 using BankReporting.Api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +27,21 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IAgentService, AgentService>();
 builder.Services.AddHttpClient<IAgentService, AgentService>();
 
+// Reverse-proxy support (X-Forwarded-For / X-Forwarded-Proto)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Allow all proxies/networks by default (common for container deployments).
+    // Lock this down if you have a fixed proxy IP.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// HTTPS redirect can be controlled explicitly via config/env var.
+// Default: enabled for non-Development, disabled for Development.
+var enableHttpsRedirect = builder.Configuration.GetValue<bool?>("ENABLE_HTTPS_REDIRECT")
+                        ?? !builder.Environment.IsDevelopment();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -35,9 +51,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// In container/local dev we typically run behind a reverse proxy over plain HTTP.
-// Keep HTTPS redirection for non-development environments.
-if (!app.Environment.IsDevelopment())
+app.UseForwardedHeaders();
+
+if (enableHttpsRedirect)
 {
     app.UseHttpsRedirection();
 }
