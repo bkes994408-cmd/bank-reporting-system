@@ -10,7 +10,7 @@
 - [ ] 移除 repo 內建置產物（bin/obj/.vs）並維持 .gitignore
 
 ## MVP-1：核心業務流程（功能）
-- [ ] Excel 解析 → JSON（/api/parsing/*）有明確輸入/輸出契約 + 錯誤碼
+- [x] Excel 解析 → JSON（/api/parsing/*）有明確輸入/輸出契約 + 錯誤碼
 - [ ] 申報上傳（/api/declare）含簽章/JWE 流程（若適用）
 - [ ] 查詢上傳結果（/api/declare/result）
 - [ ] 當月應申報報表（/api/reports）
