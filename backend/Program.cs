@@ -43,7 +43,11 @@ app.UseCors("AllowFrontend");
 app.UseAuthorization();
 
 // Basic health check endpoint for load balancers / monitoring
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () =>
+{
+    var version = builder.Configuration["AppVersion"] ?? "1.0.0";
+    return Results.Ok(new { status = "ok", version });
+});
 
 app.MapControllers();
 
