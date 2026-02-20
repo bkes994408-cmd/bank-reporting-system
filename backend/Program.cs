@@ -23,6 +23,7 @@ builder.Services.AddCors(options =>
 });
 
 // Register services
+builder.Services.AddSingleton<IExcelParsingService, ExcelParsingService>();
 builder.Services.AddSingleton<IAgentService, AgentService>();
 builder.Services.AddHttpClient<IAgentService, AgentService>();
 

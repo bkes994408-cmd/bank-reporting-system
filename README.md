@@ -136,6 +136,44 @@ dotnet test
 | GET | `/api/settings` | 取得系統設定 |
 | POST | `/api/settings` | 更新系統設定 |
 
+### `/api/parsing/excel` 契約（MVP）
+
+- Content-Type: `multipart/form-data`
+- 欄位：
+  - `reportId`：`string`（可選，原樣回傳）
+  - `uploadFile`：`.xlsx`（必填）
+- Excel 結構：
+  - 解析第一個工作表
+  - 第一列作為 `headers`
+  - 第二列起作為 `rows`
+
+成功回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "解析成功",
+  "payload": {
+    "reportId": "AI302",
+    "sheetName": "Sheet1",
+    "headers": ["account", "amount"],
+    "rows": [
+      { "account": "現金", "amount": "1000" }
+    ],
+    "rowCount": 1
+  }
+}
+```
+
+錯誤碼：
+
+- `PARSING_4001`：缺少檔案
+- `PARSING_4002`：不支援檔案類型（僅 `.xlsx`）
+- `PARSING_4003`：檔案為空
+- `PARSING_4221`：Excel 結構不正確或不是合法 `.xlsx`
+- `PARSING_4222`：工作表缺少標題列
+- `PARSING_5000`：其他未預期錯誤
+
 ## 📊 支援的報表類型
 
 | 報表編號 | 名稱 |

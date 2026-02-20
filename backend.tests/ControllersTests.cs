@@ -12,12 +12,21 @@ namespace BankReporting.Tests;
 public class ParsingControllerTests
 {
     private readonly Mock<IAgentService> _mockAgentService;
+    private readonly Mock<IExcelParsingService> _mockExcelParsingService;
     private readonly ParsingController _controller;
 
     public ParsingControllerTests()
     {
         _mockAgentService = new Mock<IAgentService>();
-        _controller = new ParsingController(_mockAgentService.Object);
+        _mockExcelParsingService = new Mock<IExcelParsingService>();
+        _mockExcelParsingService
+            .Setup(x => x.ParseAsync(It.IsAny<string>(), It.IsAny<IFormFile?>()))
+            .ReturnsAsync(new ApiResponse<ExcelParsingPayload>
+            {
+                Code = ParsingErrorCodes.MissingFile,
+                Msg = "請上傳 Excel 檔案"
+            });
+        _controller = new ParsingController(_mockAgentService.Object, _mockExcelParsingService.Object);
     }
 
     [Fact]
