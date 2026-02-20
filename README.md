@@ -31,13 +31,15 @@ bank-reporting-system/
 │   │   ├── ParsingController.cs
 │   │   ├── ReportsController.cs
 │   │   ├── SystemController.cs
+│   │   ├── MonitoringController.cs
 │   │   └── TokenController.cs
 │   ├── DTOs/                   # 資料傳輸物件
 │   │   └── RequestDTOs.cs
 │   ├── Models/                 # 資料模型
 │   │   └── ApiModels.cs
 │   ├── Services/               # 服務層
-│   │   └── AgentService.cs
+│   │   ├── AgentService.cs
+│   │   └── MonitoringService.cs
 │   ├── Program.cs
 │   ├── appsettings.json
 │   └── BankReporting.Api.csproj
@@ -135,6 +137,20 @@ dotnet test
 | POST | `/api/news/attachments` | 下載公告附件 |
 | GET | `/api/settings` | 取得系統設定 |
 | POST | `/api/settings` | 更新系統設定 |
+| GET | `/metrics` | Prometheus 格式監控指標 |
+
+## 📈 監控與告警（MVP 最小集合）
+
+- 後端會記錄每筆 API 請求的 method/path/status/duration。
+- 提供 `GET /metrics`，輸出 Prometheus 文字格式指標：
+  - `bank_reporting_requests_total`
+  - `bank_reporting_errors_total`（HTTP 5xx）
+  - `bank_reporting_request_duration_ms_avg`
+  - `bank_reporting_route_requests_total`
+  - `bank_reporting_route_errors_total`
+- 基本告警（以 log warning 輸出）：
+  - 發生 HTTP 5xx
+  - 單筆請求延遲 >= 2000ms
 
 ### `/api/parsing/excel` 契約（MVP）
 

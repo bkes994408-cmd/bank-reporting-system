@@ -333,6 +333,48 @@ public class NewsControllerTests
     }
 }
 
+public class MonitoringControllerTests
+{
+    [Fact]
+    public void Metrics_ReturnsPrometheusPlainText()
+    {
+        // Arrange
+        var monitoringService = new MonitoringService();
+        monitoringService.RecordRequest("GET", "/api/info", 200, 25);
+        monitoringService.RecordRequest("GET", "/api/info", 500, 30);
+
+        var controller = new MonitoringController(monitoringService);
+
+        // Act
+        var result = controller.Metrics();
+
+        // Assert
+        var contentResult = Assert.IsType<ContentResult>(result);
+        Assert.Equal("text/plain; version=0.0.4", contentResult.ContentType);
+        Assert.Contains("bank_reporting_requests_total", contentResult.Content);
+        Assert.Contains("bank_reporting_errors_total", contentResult.Content);
+        Assert.Contains("route=\"GET /api/info\"", contentResult.Content);
+    }
+
+    [Fact]
+    public void MonitoringService_TracksErrorCount_WhenStatusIs5xx()
+    {
+        // Arrange
+        var monitoringService = new MonitoringService();
+
+        // Act
+        monitoringService.RecordRequest("POST", "/api/declare", 200, 20);
+        monitoringService.RecordRequest("POST", "/api/declare", 503, 40);
+
+        var metrics = monitoringService.BuildPrometheusMetrics();
+
+        // Assert
+        Assert.Contains("bank_reporting_requests_total 2", metrics);
+        Assert.Contains("bank_reporting_errors_total 1", metrics);
+        Assert.Contains("bank_reporting_route_errors_total{route=\"POST /api/declare\"} 1", metrics);
+    }
+}
+
 public class SystemControllerTests
 {
     private readonly Mock<IAgentService> _mockAgentService;
