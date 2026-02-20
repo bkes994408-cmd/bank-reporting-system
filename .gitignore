@@ -1,6 +1,10 @@
 # Build outputs
-**/bin/
-**/obj/
+**/[Bb]in/
+**/[Oo]bj/
+
+# Visual Studio workspace cache
 .vs/
+**/.vs/
+
 # OS
 .DS_Store
