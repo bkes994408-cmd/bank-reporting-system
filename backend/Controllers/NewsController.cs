@@ -31,22 +31,39 @@ public class NewsController : ControllerBase
     [HttpPost("attachments")]
     public async Task<IActionResult> DownloadAttachment([FromBody] AttachmentDownloadRequest request)
     {
-        var fileBytes = await _agentService.DownloadAttachmentAsync(request);
-        
-        if (fileBytes.Length == 0)
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            return NotFound(new { code = "0001", msg = "檔案不存在" });
+            return BadRequest(new { code = "4000", msg = "附件 URL 格式錯誤" });
         }
 
-        var contentType = request.Type switch
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest(new { code = "4000", msg = "附件名稱為必填" });
+        }
+
+        var normalizedType = request.Type?.Trim().ToUpperInvariant() ?? string.Empty;
+        var contentType = normalizedType switch
         {
             "PDF" => "application/pdf",
             "IMG" => "image/png",
             "WORD" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "EXCEL" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            _ => "application/octet-stream"
+            _ => string.Empty
         };
 
-        return File(fileBytes, contentType, request.Name);
+        if (string.IsNullOrEmpty(contentType))
+        {
+            return BadRequest(new { code = "4000", msg = "不支援的附件類型" });
+        }
+
+        var fileBytes = await _agentService.DownloadAttachmentAsync(request);
+
+        if (fileBytes.Length == 0)
+        {
+            return NotFound(new { code = "0001", msg = "檔案不存在" });
+        }
+
+        return File(fileBytes, contentType, request.Name.Trim());
     }
 }

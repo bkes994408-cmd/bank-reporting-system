@@ -21,12 +21,22 @@ public class TokenController : ControllerBase
     [HttpPost("update")]
     public async Task<IActionResult> UpdateToken([FromBody] UpdateTokenRequest request)
     {
-        if (string.IsNullOrEmpty(request.Token))
+        if (string.IsNullOrWhiteSpace(request.Token))
         {
             return BadRequest(new { code = "4000", msg = "Token為必填" });
         }
 
-        var result = await _agentService.UpdateTokenAsync(request);
+        if (request.Token.Length > 2048)
+        {
+            return BadRequest(new { code = "4000", msg = "Token長度不可超過2048字元" });
+        }
+
+        var sanitizedRequest = new UpdateTokenRequest
+        {
+            Token = request.Token.Trim()
+        };
+
+        var result = await _agentService.UpdateTokenAsync(sanitizedRequest);
         return Ok(result);
     }
 }
