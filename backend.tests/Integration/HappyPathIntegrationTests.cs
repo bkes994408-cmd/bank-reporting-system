@@ -20,7 +20,8 @@ public class HappyPathIntegrationTests
     public async Task Health_ReturnsOk()
     {
         var mockAgentService = new Mock<IAgentService>();
-        await using var app = new TestAppFactory(mockAgentService);
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
         var resp = await client.GetAsync("/health");
@@ -28,18 +29,30 @@ public class HappyPathIntegrationTests
     }
 
     [Fact]
-    public async Task HappyPath_ParseExcel_Declare_DeclareResult_ReturnsOk()
+    public async Task HappyPath_Parse_Declare_QueryMonthlyReports_ReturnsOk()
     {
         // Arrange
         var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+        var mockExcelParsingService = new Mock<IExcelParsingService>(MockBehavior.Strict);
 
-        mockAgentService
-            .Setup(x => x.ParseExcelAsync("AI330", It.IsAny<IFormFile>()))
-            .ReturnsAsync(new ApiResponse<object>
+        mockExcelParsingService
+            .Setup(x => x.ParseAsync("AI330", It.IsAny<IFormFile>()))
+            .ReturnsAsync(new ApiResponse<ExcelParsingPayload>
             {
                 Code = "0000",
                 Msg = "parse ok",
-                Payload = new { reportId = "AI330", parsed = true }
+                Payload = new ExcelParsingPayload
+                {
+                    ReportId = "AI330",
+                    Headers = ["c1"],
+                    Rows =
+                    [
+                        new Dictionary<string, string>
+                        {
+                            ["c1"] = "v1"!
+                        }
+                    ]
+                }
             });
 
         mockAgentService
@@ -52,28 +65,33 @@ public class HappyPathIntegrationTests
             });
 
         mockAgentService
-            .Setup(x => x.GetDeclareResultAsync(It.Is<DeclareResultRequest>(r => r.RequestId == "0070000-123")))
-            .ReturnsAsync(new ApiResponse<ReportDeclarationResult>
+            .Setup(x => x.GetMonthlyReportsAsync(It.Is<MonthlyReportsRequest>(r =>
+                r.BankCode == "0070000" && r.ApplyYear == "113" && r.ApplyMonth == "01")))
+            .ReturnsAsync(new ApiResponse<ReportsPayload>
             {
                 Code = "0000",
-                Msg = "result ok",
-                Payload = new ReportDeclarationResult
+                Msg = "query ok",
+                Payload = new ReportsPayload
                 {
-                    RequestId = "0070000-123",
-                    TransactionId = "tx-001",
-                    BankCode = "0070000",
-                    ReportId = "AI330",
-                    Year = "113",
-                    Month = "01",
-                    Status = "SUCCESS",
-                    StatusType = "SUCCESS"
+                    Reports =
+                    [
+                        new ReportDeclarationResult
+                        {
+                            BankCode = "0070000",
+                            ReportId = "AI330",
+                            Year = "113",
+                            Month = "01",
+                            Status = "SUCCESS",
+                            StatusType = "SUCCESS"
+                        }
+                    ]
                 }
             });
 
-        await using var app = new TestAppFactory(mockAgentService);
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
-        // 1) /api/parsing/excel
+        // 1) 解析流程: /api/parsing/excel
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent("AI330"), "ReportId");
 
@@ -88,7 +106,7 @@ public class HappyPathIntegrationTests
         Assert.NotNull(parseBody);
         Assert.Equal("0000", parseBody!.Code);
 
-        // 2) /api/declare
+        // 2) 申報流程: /api/declare
         var declareReq = new DeclareRequest
         {
             RequestId = "0070000-123",
@@ -113,27 +131,37 @@ public class HappyPathIntegrationTests
         Assert.NotNull(declareBody);
         Assert.Equal("0000", declareBody!.Code);
 
-        // 3) /api/declare/result
-        var resultReq = new DeclareResultRequest { RequestId = "0070000-123" };
-        var resultResp = await client.PostAsJsonAsync("/api/declare/result", resultReq);
-        Assert.Equal(HttpStatusCode.OK, resultResp.StatusCode);
+        // 3) 查詢流程: /api/reports
+        var queryReq = new MonthlyReportsRequest
+        {
+            BankCode = "0070000",
+            ApplyYear = "113",
+            ApplyMonth = "01"
+        };
 
-        var resultBody = await resultResp.Content.ReadFromJsonAsync<ApiResponse<ReportDeclarationResult>>();
-        Assert.NotNull(resultBody);
-        Assert.Equal("0000", resultBody!.Code);
-        Assert.NotNull(resultBody.Payload);
-        Assert.Equal("SUCCESS", resultBody.Payload!.Status);
+        var queryResp = await client.PostAsJsonAsync("/api/reports", queryReq);
+        Assert.Equal(HttpStatusCode.OK, queryResp.StatusCode);
+
+        var queryBody = await queryResp.Content.ReadFromJsonAsync<ApiResponse<ReportsPayload>>();
+        Assert.NotNull(queryBody);
+        Assert.Equal("0000", queryBody!.Code);
+        Assert.NotNull(queryBody.Payload);
+        Assert.Single(queryBody.Payload!.Reports);
+        Assert.Equal("AI330", queryBody.Payload.Reports[0].ReportId);
 
         mockAgentService.VerifyAll();
+        mockExcelParsingService.VerifyAll();
     }
 
     private sealed class TestAppFactory : WebApplicationFactory<Program>
     {
         private readonly Mock<IAgentService> _mockAgentService;
+        private readonly Mock<IExcelParsingService> _mockExcelParsingService;
 
-        public TestAppFactory(Mock<IAgentService> mockAgentService)
+        public TestAppFactory(Mock<IAgentService> mockAgentService, Mock<IExcelParsingService> mockExcelParsingService)
         {
             _mockAgentService = mockAgentService;
+            _mockExcelParsingService = mockExcelParsingService;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -143,7 +171,9 @@ public class HappyPathIntegrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IAgentService>();
+                services.RemoveAll<IExcelParsingService>();
                 services.AddSingleton(_mockAgentService.Object);
+                services.AddSingleton(_mockExcelParsingService.Object);
             });
         }
     }
