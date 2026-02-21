@@ -4,7 +4,7 @@
 
 ## MVP-0：專案可開發/可測/可部署（門檻）
 - [ ] CI 全綠（後端測試 + 前端 build）
-- [ ] 前端依賴鎖定（提交 package-lock.json 或改用 pnpm-lock）
+- [x] 前端依賴鎖定（已提交 frontend/package-lock.json，CI 使用 npm ci）
 - [ ] Docker（dev/prod）可一鍵起服務（API + Web）
 - [x] Healthcheck endpoint（/health 或等效）
 - [ ] 移除 repo 內建置產物（bin/obj/.vs）並維持 .gitignore

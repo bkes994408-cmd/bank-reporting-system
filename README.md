@@ -78,7 +78,7 @@ bank-reporting-system/
 ### 系統需求
 - .NET 8 SDK
 - Node.js 18+
-- npm 或 pnpm
+- npm（建議使用 `npm ci` 搭配 `frontend/package-lock.json`）
 
 ### 後端啟動
 
@@ -101,8 +101,8 @@ dotnet run
 # 進入前端目錄
 cd frontend
 
-# 安裝依賴
-npm install
+# 安裝依賴（依 lockfile 安裝）
+npm ci
 
 # 啟動開發伺服器
 npm run dev
@@ -119,7 +119,7 @@ dotnet test
 
 # 執行前端 e2e 測試（Playwright）
 cd ../frontend
-npm install
+npm ci
 npx playwright install chromium
 npm run test:e2e
 ```
