@@ -1,3 +1,4 @@
+using System.Net;
 using BankReporting.Api.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -28,14 +29,25 @@ builder.Services.AddSingleton<IAgentService, AgentService>();
 builder.Services.AddHttpClient<IAgentService, AgentService>();
 
 // Reverse-proxy support (X-Forwarded-For / X-Forwarded-Proto)
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
+// Only enable when trusted proxies are explicitly configured.
+var knownProxyList = builder.Configuration.GetSection("KnownProxies").Get<string[]>() ?? Array.Empty<string>();
+var enableForwardedHeaders = knownProxyList.Length > 0;
+
+if (enableForwardedHeaders)
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    // Allow all proxies/networks by default (common for container deployments).
-    // Lock this down if you have a fixed proxy IP.
-    options.KnownNetworks.Clear();
-    options.KnownProxies.Clear();
-});
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        foreach (var proxy in knownProxyList)
+        {
+            if (IPAddress.TryParse(proxy, out var ipAddress))
+            {
+                options.KnownProxies.Add(ipAddress);
+            }
+        }
+    });
+}
 
 // HTTPS redirect can be controlled explicitly via config/env var.
 // Default: enabled for non-Development, disabled for Development.
@@ -51,7 +63,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseForwardedHeaders();
+if (enableForwardedHeaders)
+{
+    app.UseForwardedHeaders();
+}
 
 if (enableHttpsRedirect)
 {

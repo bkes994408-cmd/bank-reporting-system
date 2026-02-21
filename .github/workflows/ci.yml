@@ -22,7 +22,7 @@ jobs:
         working-directory: backend
 
       - name: Test
-        run: dotnet test -c Release --no-restore
+        run: dotnet test -c Release
         working-directory: backend.tests
 
   frontend:
