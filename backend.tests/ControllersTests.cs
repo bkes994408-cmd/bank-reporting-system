@@ -272,6 +272,16 @@ public class TokenControllerTests
     }
 
     [Fact]
+    public async Task UpdateToken_WithNullRequest_ReturnsBadRequest()
+    {
+        // Act
+        var result = await _controller.UpdateToken(null);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
     public async Task UpdateToken_WithEmptyToken_ReturnsBadRequest()
     {
         // Arrange

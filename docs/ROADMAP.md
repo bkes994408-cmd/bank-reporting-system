@@ -16,7 +16,7 @@
 - [ ] 當月應申報報表（/api/reports）
 - [ ] 申報歷程（/api/reports/histories）
 - [ ] 金鑰匯入/驗證（/api/keys/*）
-- [ ] Token 更新（/api/token/update）
+- [x] Token 更新（/api/token/update）
 
 ## MVP-2：完整功能測試（必備）
 - [ ] 後端 unit tests 覆蓋核心 service（>= 70% 行為覆蓋）

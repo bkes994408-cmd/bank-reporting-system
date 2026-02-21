@@ -19,9 +19,9 @@ public class TokenController : ControllerBase
     /// 更新Token
     /// </summary>
     [HttpPost("update")]
-    public async Task<IActionResult> UpdateToken([FromBody] UpdateTokenRequest request)
+    public async Task<IActionResult> UpdateToken([FromBody] UpdateTokenRequest? request)
     {
-        if (string.IsNullOrWhiteSpace(request.Token))
+        if (request is null || string.IsNullOrWhiteSpace(request.Token))
         {
             return BadRequest(new { code = "4000", msg = "Token為必填" });
         }
