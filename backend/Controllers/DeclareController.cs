@@ -21,7 +21,59 @@ public class DeclareController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Declare([FromBody] DeclareRequest request)
     {
-        var result = await _agentService.DeclareAsync(request);
+        if (string.IsNullOrWhiteSpace(request.RequestId) ||
+            string.IsNullOrWhiteSpace(request.BankCode) ||
+            string.IsNullOrWhiteSpace(request.BankName) ||
+            string.IsNullOrWhiteSpace(request.ReportYear) ||
+            string.IsNullOrWhiteSpace(request.ReportMonth) ||
+            string.IsNullOrWhiteSpace(request.ReportId) ||
+            string.IsNullOrWhiteSpace(request.ContractorName) ||
+            string.IsNullOrWhiteSpace(request.ContractorTel) ||
+            string.IsNullOrWhiteSpace(request.ContractorEmail) ||
+            string.IsNullOrWhiteSpace(request.ManagerName) ||
+            string.IsNullOrWhiteSpace(request.ManagerTel) ||
+            string.IsNullOrWhiteSpace(request.ManagerEmail))
+        {
+            return BadRequest(new { code = "4000", msg = "申報欄位不完整" });
+        }
+
+        if (request.Report == null && string.IsNullOrWhiteSpace(request.JwePayload))
+        {
+            return BadRequest(new { code = "4000", msg = "report 或 jwePayload 至少需填一個" });
+        }
+
+        if (request.UseSignature && string.IsNullOrWhiteSpace(request.Signature))
+        {
+            return BadRequest(new { code = "4000", msg = "啟用簽章時，signature 為必填" });
+        }
+
+        if (request.UseJwe && string.IsNullOrWhiteSpace(request.JwePayload))
+        {
+            return BadRequest(new { code = "4000", msg = "啟用 JWE 時，jwePayload 為必填" });
+        }
+
+        var sanitizedRequest = new DeclareRequest
+        {
+            RequestId = request.RequestId.Trim(),
+            BankCode = request.BankCode.Trim(),
+            BankName = request.BankName.Trim(),
+            ReportYear = request.ReportYear.Trim(),
+            ReportMonth = request.ReportMonth.Trim(),
+            ReportId = request.ReportId.Trim(),
+            ContractorName = request.ContractorName.Trim(),
+            ContractorTel = request.ContractorTel.Trim(),
+            ContractorEmail = request.ContractorEmail.Trim(),
+            ManagerName = request.ManagerName.Trim(),
+            ManagerTel = request.ManagerTel.Trim(),
+            ManagerEmail = request.ManagerEmail.Trim(),
+            Report = request.Report,
+            UseSignature = request.UseSignature,
+            Signature = request.Signature?.Trim(),
+            UseJwe = request.UseJwe,
+            JwePayload = request.JwePayload?.Trim()
+        };
+
+        var result = await _agentService.DeclareAsync(sanitizedRequest);
         return Ok(result);
     }
 

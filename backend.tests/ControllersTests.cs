@@ -72,7 +72,8 @@ public class DeclareControllerTests
             ContractorEmail = "test@test.com",
             ManagerName = "測試主管",
             ManagerTel = "02-12345679",
-            ManagerEmail = "manager@test.com"
+            ManagerEmail = "manager@test.com",
+            Report = new { a = 1 }
         };
 
         _mockAgentService
@@ -84,6 +85,56 @@ public class DeclareControllerTests
 
         // Assert
         Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Declare_WithoutReportAndJwePayload_ReturnsBadRequest()
+    {
+        var request = new DeclareRequest
+        {
+            RequestId = "0070000-123",
+            BankCode = "0070000",
+            BankName = "第一銀行",
+            ReportYear = "113",
+            ReportMonth = "01",
+            ReportId = "AI330",
+            ContractorName = "測試人員",
+            ContractorTel = "02-12345678",
+            ContractorEmail = "test@test.com",
+            ManagerName = "測試主管",
+            ManagerTel = "02-12345679",
+            ManagerEmail = "manager@test.com"
+        };
+
+        var result = await _controller.Declare(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Declare_WithUseJweButMissingJwePayload_ReturnsBadRequest()
+    {
+        var request = new DeclareRequest
+        {
+            RequestId = "0070000-123",
+            BankCode = "0070000",
+            BankName = "第一銀行",
+            ReportYear = "113",
+            ReportMonth = "01",
+            ReportId = "AI330",
+            ContractorName = "測試人員",
+            ContractorTel = "02-12345678",
+            ContractorEmail = "test@test.com",
+            ManagerName = "測試主管",
+            ManagerTel = "02-12345679",
+            ManagerEmail = "manager@test.com",
+            UseJwe = true,
+            Report = new { a = 1 }
+        };
+
+        var result = await _controller.Declare(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
