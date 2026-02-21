@@ -127,6 +127,52 @@ public class HappyPathIntegrationTests
         mockAgentService.VerifyAll();
     }
 
+
+    [Fact]
+    public async Task KeysEndpoints_ImportAndValidate_ReturnsOk()
+    {
+        // Arrange
+        var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+
+        mockAgentService
+            .Setup(x => x.ImportKeysAsync(It.Is<ImportKeysRequest>(r => r.KeyA == "keyA123" && r.KeyB == "keyB456")))
+            .ReturnsAsync(new ApiResponse<object>
+            {
+                Code = "0000",
+                Msg = "import ok"
+            });
+
+        mockAgentService
+            .Setup(x => x.ValidateKeysAsync())
+            .ReturnsAsync(new ApiResponse<object>
+            {
+                Code = "0000",
+                Msg = "validate ok"
+            });
+
+        await using var app = new TestAppFactory(mockAgentService);
+        using var client = app.CreateClient();
+
+        // 1) /api/keys/import
+        var importReq = new ImportKeysRequest { KeyA = "  keyA123 ", KeyB = " keyB456  " };
+        var importResp = await client.PostAsJsonAsync("/api/keys/import", importReq);
+        Assert.Equal(HttpStatusCode.OK, importResp.StatusCode);
+
+        var importBody = await importResp.Content.ReadFromJsonAsync<ApiResponse<object>>();
+        Assert.NotNull(importBody);
+        Assert.Equal("0000", importBody!.Code);
+
+        // 2) /api/keys/validate
+        var validateResp = await client.PostAsync("/api/keys/validate", null);
+        Assert.Equal(HttpStatusCode.OK, validateResp.StatusCode);
+
+        var validateBody = await validateResp.Content.ReadFromJsonAsync<ApiResponse<object>>();
+        Assert.NotNull(validateBody);
+        Assert.Equal("0000", validateBody!.Code);
+
+        mockAgentService.VerifyAll();
+    }
+
     private sealed class TestAppFactory : WebApplicationFactory<Program>
     {
         private readonly Mock<IAgentService> _mockAgentService;

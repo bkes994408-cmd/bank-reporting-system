@@ -185,6 +185,16 @@ public class KeysControllerTests
     }
 
     [Fact]
+    public async Task ImportKeys_WithNullRequest_ReturnsBadRequest()
+    {
+        // Act
+        var result = await _controller.ImportKeys(null!);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
     public async Task ImportKeys_WithEmptyKeys_ReturnsBadRequest()
     {
         // Arrange

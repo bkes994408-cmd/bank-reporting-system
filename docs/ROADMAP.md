@@ -15,7 +15,7 @@
 - [ ] 查詢上傳結果（/api/declare/result）
 - [ ] 當月應申報報表（/api/reports）
 - [ ] 申報歷程（/api/reports/histories）
-- [ ] 金鑰匯入/驗證（/api/keys/*）
+- [x] 金鑰匯入/驗證（/api/keys/*）
 - [ ] Token 更新（/api/token/update）
 
 ## MVP-2：完整功能測試（必備）

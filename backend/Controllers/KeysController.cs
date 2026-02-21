@@ -21,7 +21,7 @@ public class KeysController : ControllerBase
     [HttpPost("import")]
     public async Task<IActionResult> ImportKeys([FromBody] ImportKeysRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.KeyA) || string.IsNullOrWhiteSpace(request.KeyB))
+        if (request is null || string.IsNullOrWhiteSpace(request.KeyA) || string.IsNullOrWhiteSpace(request.KeyB))
         {
             return BadRequest(new { code = "4000", msg = "金鑰A和金鑰B均為必填" });
         }
