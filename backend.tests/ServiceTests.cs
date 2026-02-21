@@ -52,6 +52,22 @@ public class ExcelParsingServiceTests
         Assert.Equal("值2", result.Payload.Rows[0]["欄位二"]);
     }
 
+
+    [Fact]
+    public async Task ParseAsync_WhenFirstSheetIsNotSheet1_StillParsesFirstSheetByWorkbookOrder()
+    {
+        var bytes = BuildSimpleXlsx(firstSheetTarget: "worksheets/custom-sheet.xml");
+        var file = CreateFormFile(bytes, "test.xlsx");
+
+        var result = await _service.ParseAsync("AI330", file);
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(result.Payload);
+        Assert.Equal("SheetA", result.Payload!.SheetName);
+        Assert.Single(result.Payload.Rows);
+        Assert.Equal("值1", result.Payload.Rows[0]["欄位一"]);
+    }
+
     [Fact]
     public async Task ParseAsync_WhenNotZip_ReturnsInvalidWorkbook()
     {
@@ -68,7 +84,7 @@ public class ExcelParsingServiceTests
         return new FormFile(stream, 0, stream.Length, "UploadFile", fileName);
     }
 
-    private static byte[] BuildSimpleXlsx()
+    private static byte[] BuildSimpleXlsx(string firstSheetTarget = "worksheets/sheet1.xml")
     {
         using var memory = new MemoryStream();
         using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
@@ -78,6 +94,13 @@ public class ExcelParsingServiceTests
                 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
                   <sheets><sheet name="SheetA" sheetId="1" r:id="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></sheets>
                 </workbook>
+                """);
+
+            WriteEntry(zip, "xl/_rels/workbook.xml.rels", $"""
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="{firstSheetTarget}"/>
+                </Relationships>
                 """);
 
             WriteEntry(zip, "xl/sharedStrings.xml", """
@@ -90,7 +113,11 @@ public class ExcelParsingServiceTests
                 </sst>
                 """);
 
-            WriteEntry(zip, "xl/worksheets/sheet1.xml", """
+            var sheetPath = firstSheetTarget.StartsWith("xl/", StringComparison.OrdinalIgnoreCase)
+                ? firstSheetTarget
+                : $"xl/{firstSheetTarget.TrimStart('/')}";
+
+            WriteEntry(zip, sheetPath, """
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
                   <sheetData>

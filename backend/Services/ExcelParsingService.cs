@@ -55,8 +55,17 @@ public class ExcelParsingService : IExcelParsingService
             using var archive = new ZipArchive(mem, ZipArchiveMode.Read, leaveOpen: false);
 
             var workbookEntry = archive.GetEntry("xl/workbook.xml");
-            var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
-            if (workbookEntry == null || sheetEntry == null)
+            if (workbookEntry == null)
+            {
+                return new ApiResponse<ExcelParsingPayload>
+                {
+                    Code = ParsingErrorCodes.InvalidWorkbook,
+                    Msg = "Excel 結構不正確，找不到必要工作簿內容"
+                };
+            }
+
+            var firstSheet = await LoadFirstWorksheetEntryAsync(archive, workbookEntry);
+            if (firstSheet == null)
             {
                 return new ApiResponse<ExcelParsingPayload>
                 {
@@ -66,9 +75,7 @@ public class ExcelParsingService : IExcelParsingService
             }
 
             var sharedStrings = await LoadSharedStringsAsync(archive);
-            var sheetName = await LoadFirstSheetNameAsync(workbookEntry) ?? "Sheet1";
-
-            var payload = await ParseSheetAsync(sheetEntry, sharedStrings);
+            var payload = await ParseSheetAsync(firstSheet.Value.Entry, sharedStrings);
             if (payload.Headers.Count == 0)
             {
                 return new ApiResponse<ExcelParsingPayload>
@@ -79,7 +86,7 @@ public class ExcelParsingService : IExcelParsingService
             }
 
             payload.ReportId = reportId;
-            payload.SheetName = sheetName;
+            payload.SheetName = firstSheet.Value.Name;
 
             return new ApiResponse<ExcelParsingPayload>
             {
@@ -120,13 +127,60 @@ public class ExcelParsingService : IExcelParsingService
             .ToList();
     }
 
-    private static async Task<string?> LoadFirstSheetNameAsync(ZipArchiveEntry workbookEntry)
+    private static async Task<(string Name, ZipArchiveEntry Entry)?> LoadFirstWorksheetEntryAsync(ZipArchive archive, ZipArchiveEntry workbookEntry)
     {
-        await using var stream = workbookEntry.Open();
-        var doc = await XDocument.LoadAsync(stream, LoadOptions.None, CancellationToken.None);
+        await using var workbookStream = workbookEntry.Open();
+        var workbookDoc = await XDocument.LoadAsync(workbookStream, LoadOptions.None, CancellationToken.None);
 
-        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        return doc.Descendants(ns + "sheet").FirstOrDefault()?.Attribute("name")?.Value;
+        XNamespace spreadsheetNs = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        XNamespace relNs = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        XNamespace packageRelNs = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+        var firstSheet = workbookDoc.Descendants(spreadsheetNs + "sheet").FirstOrDefault();
+        if (firstSheet == null)
+        {
+            return null;
+        }
+
+        var sheetName = firstSheet.Attribute("name")?.Value ?? "Sheet1";
+        var relId = firstSheet.Attribute(relNs + "id")?.Value;
+        if (string.IsNullOrWhiteSpace(relId))
+        {
+            return null;
+        }
+
+        var relsEntry = archive.GetEntry("xl/_rels/workbook.xml.rels");
+        if (relsEntry == null)
+        {
+            return null;
+        }
+
+        await using var relsStream = relsEntry.Open();
+        var relsDoc = await XDocument.LoadAsync(relsStream, LoadOptions.None, CancellationToken.None);
+
+        var target = relsDoc.Descendants(packageRelNs + "Relationship")
+            .FirstOrDefault(x => x.Attribute("Id")?.Value == relId)
+            ?.Attribute("Target")?.Value;
+
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        var normalizedTarget = target.Replace('\\', '/').TrimStart('/');
+        var worksheetPath = normalizedTarget.StartsWith("worksheets/", StringComparison.OrdinalIgnoreCase)
+            ? $"xl/{normalizedTarget}"
+            : normalizedTarget.StartsWith("xl/", StringComparison.OrdinalIgnoreCase)
+                ? normalizedTarget
+                : $"xl/{normalizedTarget}";
+
+        var worksheetEntry = archive.GetEntry(worksheetPath);
+        if (worksheetEntry == null)
+        {
+            return null;
+        }
+
+        return (sheetName, worksheetEntry);
     }
 
     private static async Task<ExcelParsingPayload> ParseSheetAsync(ZipArchiveEntry sheetEntry, List<string> sharedStrings)
