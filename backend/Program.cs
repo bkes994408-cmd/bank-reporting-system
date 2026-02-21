@@ -37,7 +37,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-if (!app.Environment.IsEnvironment("Test"))
+var disableHttpsRedirection = app.Configuration.GetValue<bool>("DISABLE_HTTPS_REDIRECTION");
+if (!app.Environment.IsEnvironment("Test") && !disableHttpsRedirection)
 {
     app.UseHttpsRedirection();
 }
