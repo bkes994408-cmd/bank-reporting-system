@@ -151,6 +151,57 @@ public class ReportsControllerTests
     }
 
     [Fact]
+    public async Task GetMonthlyReports_WithoutBankCode_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new MonthlyReportsRequest
+        {
+            BankCode = "   ",
+            ApplyYear = "113",
+            ApplyMonth = "01"
+        };
+
+        // Act
+        var result = await _controller.GetMonthlyReports(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+        _mockAgentService.Verify(x => x.GetMonthlyReportsAsync(It.IsAny<MonthlyReportsRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMonthlyReports_WithoutYearOrMonth_AutoFillsCurrentPeriod()
+    {
+        // Arrange
+        var request = new MonthlyReportsRequest
+        {
+            BankCode = " 0070000 ",
+            ApplyYear = "",
+            ApplyMonth = null
+        };
+
+        _mockAgentService
+            .Setup(x => x.GetMonthlyReportsAsync(It.IsAny<MonthlyReportsRequest>()))
+            .ReturnsAsync(new ApiResponse<ReportsPayload> { Code = "0000", Msg = "查詢成功" });
+
+        // Act
+        var result = await _controller.GetMonthlyReports(request);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+
+        var now = DateTime.Now;
+        var expectedYear = (now.Year - 1911).ToString();
+        var expectedMonth = now.Month.ToString("D2");
+
+        _mockAgentService.Verify(x => x.GetMonthlyReportsAsync(It.Is<MonthlyReportsRequest>(r =>
+            r.BankCode == "0070000" &&
+            r.ApplyYear == expectedYear &&
+            r.ApplyMonth == expectedMonth
+        )), Times.Once);
+    }
+
+    [Fact]
     public async Task GetReportHistories_ReturnsOk()
     {
         // Arrange

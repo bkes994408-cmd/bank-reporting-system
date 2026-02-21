@@ -132,7 +132,7 @@ npm run test:e2e
 | POST | `/api/parsing/excel-with-contact` | Excel + 聯絡人轉 JSON |
 | POST | `/api/declare` | 上傳申報表 |
 | POST | `/api/declare/result` | 查詢上傳結果 |
-| POST | `/api/reports` | 查詢當月應申報報表 |
+| POST | `/api/reports` | 查詢當月應申報報表（`applyYear`/`applyMonth` 可省略，預設當月） |
 | POST | `/api/reports/histories` | 查詢報表申報歷程 |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
