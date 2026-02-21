@@ -143,6 +143,7 @@ npm run test:e2e
 | POST | `/api/news/attachments` | 下載公告附件 |
 | GET | `/api/settings` | 取得系統設定 |
 | POST | `/api/settings` | 更新系統設定 |
+| GET | `/health` | 健康檢查（服務存活與版本） |
 | GET | `/metrics` | Prometheus 格式監控指標 |
 
 ## 📈 監控與告警（MVP 最小集合）

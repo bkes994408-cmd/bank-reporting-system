@@ -6,7 +6,7 @@
 - [ ] CI 全綠（後端測試 + 前端 build）
 - [ ] 前端依賴鎖定（提交 package-lock.json 或改用 pnpm-lock）
 - [ ] Docker（dev/prod）可一鍵起服務（API + Web）
-- [ ] Healthcheck endpoint（/health 或等效）
+- [x] Healthcheck endpoint（/health 或等效）
 - [ ] 移除 repo 內建置產物（bin/obj/.vs）並維持 .gitignore
 
 ## MVP-1：核心業務流程（功能）
