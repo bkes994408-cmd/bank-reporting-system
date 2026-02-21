@@ -196,6 +196,45 @@ npm run test:e2e
 - `PARSING_4222`：工作表缺少標題列
 - `PARSING_5000`：其他未預期錯誤
 
+### `/api/declare/result` 契約（MVP）
+
+- Content-Type: `application/json`
+- 請求欄位（至少需提供一個）：
+  - `requestId`：`string`（申報請求編號）
+  - `transactionId`：`string`（交易編號）
+
+請求範例：
+
+```json
+{
+  "requestId": "0070000-123"
+}
+```
+
+成功回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "查詢成功",
+  "payload": {
+    "requestId": "0070000-123",
+    "transactionId": "tx-001",
+    "status": "SUCCESS",
+    "message": "上傳完成"
+  }
+}
+```
+
+請求驗證失敗（400）：
+
+```json
+{
+  "code": "4000",
+  "msg": "requestId 或 transactionId 至少需填一個"
+}
+```
+
 ## 📊 支援的報表類型
 
 | 報表編號 | 名稱 |
