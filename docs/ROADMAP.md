@@ -22,7 +22,7 @@
 - [ ] 後端 unit tests 覆蓋核心 service（>= 70% 行為覆蓋）
 - [ ] 後端 integration tests 覆蓋 3 條主流程（解析→申報→查詢）
 - [ ] 前端 e2e（Playwright/Cypress 擇一）覆蓋 1 條主流程
-- [ ] 重要安全測試：無 secrets、日誌不含敏感資料、輸入驗證
+- [x] 重要安全測試：無 secrets、日誌不含敏感資料、輸入驗證
 
 ## MVP-3：PRD 部署與回滾
 - [ ] Windows Server（Docker Desktop）部署指南（docs/DEPLOYMENT.md）

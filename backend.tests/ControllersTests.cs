@@ -6,6 +6,7 @@ using BankReporting.Api.Services;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
 
 namespace BankReporting.Tests;
 
@@ -214,6 +215,36 @@ public class KeysControllerTests
     }
 
     [Fact]
+    public async Task ImportKeys_WithWhitespaceKeys_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new ImportKeysRequest { KeyA = "   ", KeyB = "\t" };
+
+        // Act
+        var result = await _controller.ImportKeys(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ImportKeys_TrimsKeysBeforeCallingService()
+    {
+        // Arrange
+        var request = new ImportKeysRequest { KeyA = "  keyA123  ", KeyB = "  keyB456 " };
+
+        _mockAgentService
+            .Setup(x => x.ImportKeysAsync(It.IsAny<ImportKeysRequest>()))
+            .ReturnsAsync(new ApiResponse<object> { Code = "0000", Msg = "匯入成功" });
+
+        // Act
+        await _controller.ImportKeys(request);
+
+        // Assert
+        _mockAgentService.Verify(x => x.ImportKeysAsync(It.Is<ImportKeysRequest>(r => r.KeyA == "keyA123" && r.KeyB == "keyB456")), Times.Once);
+    }
+
+    [Fact]
     public async Task ValidateKeys_ReturnsOk()
     {
         // Arrange
@@ -269,6 +300,49 @@ public class TokenControllerTests
         // Assert
         Assert.IsType<OkObjectResult>(result);
     }
+
+    [Fact]
+    public async Task UpdateToken_WithWhitespaceToken_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new UpdateTokenRequest { Token = "   " };
+
+        // Act
+        var result = await _controller.UpdateToken(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateToken_WithTooLongToken_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new UpdateTokenRequest { Token = new string('a', 2049) };
+
+        // Act
+        var result = await _controller.UpdateToken(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateToken_TrimsTokenBeforeCallingService()
+    {
+        // Arrange
+        var request = new UpdateTokenRequest { Token = "  valid-token-123  " };
+
+        _mockAgentService
+            .Setup(x => x.UpdateTokenAsync(It.IsAny<UpdateTokenRequest>()))
+            .ReturnsAsync(new ApiResponse<object> { Code = "0000", Msg = "更新成功" });
+
+        // Act
+        await _controller.UpdateToken(request);
+
+        // Assert
+        _mockAgentService.Verify(x => x.UpdateTokenAsync(It.Is<UpdateTokenRequest>(r => r.Token == "valid-token-123")), Times.Once);
+    }
 }
 
 public class NewsControllerTests
@@ -311,12 +385,48 @@ public class NewsControllerTests
     }
 
     [Fact]
-    public async Task DownloadAttachment_WithInvalidUrl_ReturnsNotFound()
+    public async Task DownloadAttachment_WithInvalidUrl_ReturnsBadRequest()
     {
         // Arrange
         var request = new AttachmentDownloadRequest
         {
             Url = "/invalid/url",
+            Name = "test.pdf",
+            Type = "PDF"
+        };
+
+        // Act
+        var result = await _controller.DownloadAttachment(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DownloadAttachment_WithUnsupportedType_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new AttachmentDownloadRequest
+        {
+            Url = "https://example.com/file.bin",
+            Name = "test.bin",
+            Type = "BIN"
+        };
+
+        // Act
+        var result = await _controller.DownloadAttachment(request);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DownloadAttachment_WithEmptyPayloadFromAgent_ReturnsNotFound()
+    {
+        // Arrange
+        var request = new AttachmentDownloadRequest
+        {
+            Url = "https://example.com/test.pdf",
             Name = "test.pdf",
             Type = "PDF"
         };

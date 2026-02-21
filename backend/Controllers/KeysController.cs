@@ -21,12 +21,18 @@ public class KeysController : ControllerBase
     [HttpPost("import")]
     public async Task<IActionResult> ImportKeys([FromBody] ImportKeysRequest request)
     {
-        if (string.IsNullOrEmpty(request.KeyA) || string.IsNullOrEmpty(request.KeyB))
+        if (string.IsNullOrWhiteSpace(request.KeyA) || string.IsNullOrWhiteSpace(request.KeyB))
         {
             return BadRequest(new { code = "4000", msg = "金鑰A和金鑰B均為必填" });
         }
 
-        var result = await _agentService.ImportKeysAsync(request);
+        var sanitizedRequest = new ImportKeysRequest
+        {
+            KeyA = request.KeyA.Trim(),
+            KeyB = request.KeyB.Trim()
+        };
+
+        var result = await _agentService.ImportKeysAsync(sanitizedRequest);
         return Ok(result);
     }
 
