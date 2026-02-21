@@ -196,6 +196,25 @@ npm run test:e2e
 - `PARSING_4222`：工作表缺少標題列
 - `PARSING_5000`：其他未預期錯誤
 
+### `/api/declare` 契約（MVP）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `requestId`, `bankCode`, `bankName`, `reportYear`, `reportMonth`, `reportId`
+  - `contractorName`, `contractorTel`, `contractorEmail`
+  - `managerName`, `managerTel`, `managerEmail`
+- 申報內容：`report` 與 `jwePayload` 至少需提供一個
+- 簽章/JWE（選填）：
+  - `useSignature: boolean`，為 `true` 時需提供 `signature`
+  - `useJwe: boolean`，為 `true` 時需提供 `jwePayload`
+
+### `/api/declare/result` 契約（MVP）
+
+- Content-Type: `application/json`
+- 請求欄位（至少需提供一個）：
+  - `requestId`：`string`（申報請求編號）
+  - `transactionId`：`string`（交易編號）
+
 ## 📊 支援的報表類型
 
 | 報表編號 | 名稱 |

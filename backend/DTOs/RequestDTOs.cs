@@ -46,6 +46,12 @@ public class DeclareRequest
     public string ManagerTel { get; set; } = string.Empty;
     public string ManagerEmail { get; set; } = string.Empty;
     public object? Report { get; set; }
+
+    // 若代理端啟用簽章/JWE，可使用以下欄位透傳
+    public bool UseSignature { get; set; }
+    public string? Signature { get; set; }
+    public bool UseJwe { get; set; }
+    public string? JwePayload { get; set; }
 }
 
 /// <summary>
