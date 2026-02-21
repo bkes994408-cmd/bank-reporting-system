@@ -124,6 +124,26 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+### Docker 一鍵啟動（API + Web）
+
+```bash
+# 生產模式（後端 + 前端 Nginx）
+docker compose up -d --build
+
+# 開發模式（後端 + 前端 Vite dev server）
+docker compose --profile dev up -d --build
+```
+
+- 生產模式前端：`http://localhost:8080`
+- 開發模式前端：`http://localhost:5173`
+- 後端 API：`http://localhost:5000`
+
+停止服務：
+
+```bash
+docker compose down
+```
+
 ## 📚 API 端點
 
 | 方法 | 路徑 | 說明 |

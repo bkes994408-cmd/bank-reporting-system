@@ -48,74 +48,15 @@ cd bank-reporting-system
 
 ---
 
-## 4. 建立容器化檔案
+## 4. 容器化檔案（已內建）
 
-目前專案以本機開發流程為主，若要以 Docker Desktop 部署，請先在專案根目錄建立以下檔案。
+專案已內建下列檔案，可直接一鍵啟動：
 
-### 4.1 `backend/Dockerfile`
-
-```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-
-COPY backend/BankReporting.Api.csproj backend/
-RUN dotnet restore backend/BankReporting.Api.csproj
-
-COPY backend/ backend/
-WORKDIR /src/backend
-RUN dotnet publish BankReporting.Api.csproj -c Release -o /app/publish
-
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-WORKDIR /app
-COPY --from=build /app/publish .
-
-ENV ASPNETCORE_URLS=http://+:5000
-EXPOSE 5000
-ENTRYPOINT ["dotnet", "BankReporting.Api.dll"]
-```
-
-### 4.2 `frontend/Dockerfile`
-
-```dockerfile
-FROM node:20-alpine AS build
-WORKDIR /app
-
-COPY frontend/package*.json ./
-RUN npm ci
-
-COPY frontend/ ./
-RUN npm run build
-
-FROM nginx:1.27-alpine AS runtime
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-```
-
-### 4.3 `docker-compose.yml`（專案根目錄）
-
-```yaml
-version: "3.9"
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: bank-reporting-backend
-    ports:
-      - "5000:5000"
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    container_name: bank-reporting-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-```
+- `backend/Dockerfile`
+- `frontend/Dockerfile`（production）
+- `frontend/Dockerfile.dev`（development）
+- `frontend/nginx.conf`
+- `docker-compose.yml`
 
 ---
 
@@ -123,9 +64,16 @@ services:
 
 於專案根目錄執行：
 
+### 5.1 Production（預設）
+
 ```powershell
-docker compose build --no-cache
-docker compose up -d
+docker compose up -d --build
+```
+
+### 5.2 Development（含前端 Vite dev server）
+
+```powershell
+docker compose --profile dev up -d --build
 ```
 
 檢查狀態：
@@ -134,14 +82,16 @@ docker compose up -d
 docker compose ps
 docker compose logs -f backend
 docker compose logs -f frontend
+docker compose logs -f frontend-dev
 ```
 
 ---
 
 ## 6. 驗證部署
 
-- 前端首頁：`http://<server-ip>/`
-- 後端健康狀態：`http://<server-ip>:5000/health`（若專案後續新增 health endpoint，請以實際路徑為準）
+- 前端首頁（production）：`http://<server-ip>:8080/`
+- 前端首頁（development）：`http://<server-ip>:5173/`
+- 後端健康狀態：`http://<server-ip>:5000/health`
 - 監控指標：`http://<server-ip>:5000/metrics`
 
 建議驗證：
