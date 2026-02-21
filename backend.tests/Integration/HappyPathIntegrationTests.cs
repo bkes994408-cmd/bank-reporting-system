@@ -20,7 +20,8 @@ public class HappyPathIntegrationTests
     public async Task Health_ReturnsOk_WithPlainTextBody()
     {
         var mockAgentService = new Mock<IAgentService>();
-        await using var app = new TestAppFactory(mockAgentService);
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
         var resp = await client.GetAsync("/health");
@@ -36,14 +37,23 @@ public class HappyPathIntegrationTests
     {
         // Arrange
         var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+        var mockExcelParsingService = new Mock<IExcelParsingService>(MockBehavior.Strict);
 
-        mockAgentService
-            .Setup(x => x.ParseExcelAsync("AI330", It.IsAny<IFormFile>()))
-            .ReturnsAsync(new ApiResponse<object>
+        mockExcelParsingService
+            .Setup(x => x.ParseAsync("AI330", It.IsAny<IFormFile?>()))
+            .ReturnsAsync(new ApiResponse<ExcelParsingPayload>
             {
                 Code = "0000",
                 Msg = "parse ok",
-                Payload = new { reportId = "AI330", parsed = true }
+                Payload = new ExcelParsingPayload
+                {
+                    ReportId = "AI330",
+                    Headers = new List<string> { "Col1" },
+                    Rows = new List<Dictionary<string, string>>
+                    {
+                        new() { ["Col1"] = "Value1" }
+                    }
+                }
             });
 
         mockAgentService
@@ -74,7 +84,7 @@ public class HappyPathIntegrationTests
                 }
             });
 
-        await using var app = new TestAppFactory(mockAgentService);
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
         // 1) /api/parsing/excel
@@ -134,10 +144,12 @@ public class HappyPathIntegrationTests
     private sealed class TestAppFactory : WebApplicationFactory<Program>
     {
         private readonly Mock<IAgentService> _mockAgentService;
+        private readonly Mock<IExcelParsingService> _mockExcelParsingService;
 
-        public TestAppFactory(Mock<IAgentService> mockAgentService)
+        public TestAppFactory(Mock<IAgentService> mockAgentService, Mock<IExcelParsingService> mockExcelParsingService)
         {
             _mockAgentService = mockAgentService;
+            _mockExcelParsingService = mockExcelParsingService;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -147,7 +159,9 @@ public class HappyPathIntegrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IAgentService>();
+                services.RemoveAll<IExcelParsingService>();
                 services.AddSingleton(_mockAgentService.Object);
+                services.AddSingleton(_mockExcelParsingService.Object);
             });
         }
     }
