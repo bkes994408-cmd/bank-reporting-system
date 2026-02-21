@@ -14,7 +14,7 @@
 - [ ] 申報上傳（/api/declare）含簽章/JWE 流程（若適用）
 - [ ] 查詢上傳結果（/api/declare/result）
 - [ ] 當月應申報報表（/api/reports）
-- [ ] 申報歷程（/api/reports/histories）
+- [x] 申報歷程（/api/reports/histories）
 - [ ] 金鑰匯入/驗證（/api/keys/*）
 - [ ] Token 更新（/api/token/update）
 
