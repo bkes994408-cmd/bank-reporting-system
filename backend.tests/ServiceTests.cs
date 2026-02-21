@@ -261,6 +261,50 @@ public class AgentServiceTests
     }
 
     [Fact]
+    public async Task GetDeclareResultAsync_WhenApiReturnsNullBody_ReturnsFallbackMessage()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("null", Encoding.UTF8, "application/json")
+            }));
+        var service = BuildService(handler);
+
+        var result = await service.GetDeclareResultAsync(new DeclareResultRequest { RequestId = "r1" });
+
+        Assert.Equal("5000", result.Code);
+        Assert.Equal("查詢失敗", result.Msg);
+    }
+
+    [Fact]
+    public async Task GetDeclareResultAsync_CallsExpectedEndpointPath()
+    {
+        Uri? capturedUri = null;
+        var payload = JsonSerializer.Serialize(new ApiResponse<ReportDeclarationResult>
+        {
+            Code = "0000",
+            Msg = "ok",
+            Payload = new ReportDeclarationResult { Status = "SUCCESS" }
+        });
+
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            capturedUri = request.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+        });
+        var service = BuildService(handler);
+
+        var result = await service.GetDeclareResultAsync(new DeclareResultRequest { RequestId = "r1" });
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(capturedUri);
+        Assert.Equal("/APBSA/agent-api/declare/result/v1", capturedUri!.AbsolutePath);
+    }
+
+    [Fact]
     public async Task GetReportHistoriesAsync_WhenRequestThrows_ReturnsExceptionMessage()
     {
         var handler = new StubHttpMessageHandler(_ => throw new HttpRequestException("connection reset"));
