@@ -86,11 +86,7 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 
 // Basic health check endpoint for load balancers / monitoring
-app.MapGet("/health", () =>
-{
-    var version = builder.Configuration["AppVersion"] ?? "1.0.0";
-    return Results.Ok(new { status = "ok", version });
-});
+app.MapGet("/health", () => Results.Text("ok", "text/plain"));
 
 app.MapControllers();
 

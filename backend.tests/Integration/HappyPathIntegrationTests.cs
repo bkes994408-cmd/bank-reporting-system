@@ -17,7 +17,7 @@ namespace BankReporting.Tests.Integration;
 public class HappyPathIntegrationTests
 {
     [Fact]
-    public async Task Health_ReturnsOk()
+    public async Task Health_ReturnsOk_WithPlainTextBody()
     {
         var mockAgentService = new Mock<IAgentService>();
         await using var app = new TestAppFactory(mockAgentService);
@@ -25,6 +25,10 @@ public class HappyPathIntegrationTests
 
         var resp = await client.GetAsync("/health");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.StartsWith("text/plain", resp.Content.Headers.ContentType?.ToString());
+
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Equal("ok", body);
     }
 
     [Fact]
