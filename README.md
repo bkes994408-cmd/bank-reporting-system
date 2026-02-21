@@ -116,6 +116,12 @@ npm run dev
 # 執行後端測試
 cd backend.tests
 dotnet test
+
+# 執行前端 e2e 測試（Playwright）
+cd ../frontend
+npm install
+npx playwright install chromium
+npm run test:e2e
 ```
 
 ## 📚 API 端點
