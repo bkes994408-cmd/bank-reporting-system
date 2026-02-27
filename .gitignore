@@ -4,9 +4,24 @@ obj/
 **/[Bb]in/
 **/[Oo]bj/
 
+# Test artifacts / coverage
+TestResults/
+**/TestResults/
+coverage/
+coverage.*
+*.coverage
+*.cobertura.xml
+
+# Frontend build outputs
+frontend/dist/
+
 # Visual Studio workspace cache
 .vs/
 **/.vs/
+
+# IDE
+.idea/
+.vscode/
 
 # OS
 .DS_Store
