@@ -26,7 +26,7 @@
 
 ## MVP-3：PRD 部署與回滾
 - [x] Windows Server（Docker Desktop）部署指南（docs/DEPLOYMENT.md）
-- [ ] 回滾指南（docs/ROLLBACK.md）
+- [x] 回滾指南（docs/ROLLBACK.md）
 - [x] 監控/告警最小集合（logs + basic metrics）
 
 ## 本輪（Sprint）完成摘要
