@@ -141,6 +141,77 @@ public class HappyPathIntegrationTests
         mockAgentService.VerifyAll();
     }
 
+    [Fact]
+    public async Task HappyPath_Reports_And_Histories_ReturnsOk()
+    {
+        var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+
+        mockAgentService
+            .Setup(x => x.GetMonthlyReportsAsync(It.Is<MonthlyReportsRequest>(r =>
+                r.BankCode == "0070000" && r.ApplyYear == "113" && r.ApplyMonth == "01")))
+            .ReturnsAsync(new ApiResponse<ReportsPayload>
+            {
+                Code = "0000",
+                Msg = "reports ok",
+                Payload = new ReportsPayload
+                {
+                    Reports = new List<ReportDeclarationResult>
+                    {
+                        new() { BankCode = "0070000", ReportId = "AI330", Year = "113", Month = "01", Status = "PENDING" }
+                    }
+                }
+            });
+
+        mockAgentService
+            .Setup(x => x.GetReportHistoriesAsync(It.Is<ReportHistoriesRequest>(r =>
+                r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly")))
+            .ReturnsAsync(new ApiResponse<ReportHistoriesPayload>
+            {
+                Code = "0000",
+                Msg = "histories ok",
+                Payload = new ReportHistoriesPayload
+                {
+                    Reports = new List<ReportHistory>
+                    {
+                        new() { BankCode = "0070000", ReportId = "AI330", Year = "113", Month = "01", Status = "SUCCESS" }
+                    }
+                }
+            });
+
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
+        using var client = app.CreateClient();
+
+        var reportsResp = await client.PostAsJsonAsync("/api/reports", new MonthlyReportsRequest
+        {
+            BankCode = " 0070000 ",
+            ApplyYear = " 113 ",
+            ApplyMonth = " 01 "
+        });
+
+        Assert.Equal(HttpStatusCode.OK, reportsResp.StatusCode);
+        var reportsBody = await reportsResp.Content.ReadFromJsonAsync<ApiResponse<ReportsPayload>>();
+        Assert.NotNull(reportsBody);
+        Assert.Equal("0000", reportsBody!.Code);
+        Assert.Single(reportsBody.Payload!.Reports);
+
+        var historiesResp = await client.PostAsJsonAsync("/api/reports/histories", new ReportHistoriesRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            Year = " 113 ",
+            Type = " monthly "
+        });
+
+        Assert.Equal(HttpStatusCode.OK, historiesResp.StatusCode);
+        var historiesBody = await historiesResp.Content.ReadFromJsonAsync<ApiResponse<ReportHistoriesPayload>>();
+        Assert.NotNull(historiesBody);
+        Assert.Equal("0000", historiesBody!.Code);
+        Assert.Single(historiesBody.Payload!.Reports);
+
+        mockAgentService.VerifyAll();
+    }
+
     private sealed class TestAppFactory : WebApplicationFactory<Program>
     {
         private readonly Mock<IAgentService> _mockAgentService;
