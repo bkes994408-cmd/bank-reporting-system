@@ -180,47 +180,103 @@ public class ReportsControllerTests
     }
 
     [Fact]
-    public async Task GetMonthlyReports_ReturnsOk()
+    public async Task GetMonthlyReports_ReturnsBadRequest_WhenMissingRequiredFields()
     {
-        // Arrange
+        var request = new MonthlyReportsRequest
+        {
+            BankCode = "",
+            ApplyYear = ""
+        };
+
+        var result = await _controller.GetMonthlyReports(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetMonthlyReports_ReturnsBadRequest_WhenApplyMonthNotNumeric()
+    {
         var request = new MonthlyReportsRequest
         {
             BankCode = "0070000",
             ApplyYear = "113",
-            ApplyMonth = "01"
+            ApplyMonth = "AB"
+        };
+
+        var result = await _controller.GetMonthlyReports(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetMonthlyReports_ReturnsBadRequest_WhenApplyMonthOutOfRange()
+    {
+        var request = new MonthlyReportsRequest
+        {
+            BankCode = "0070000",
+            ApplyYear = "113",
+            ApplyMonth = "13"
+        };
+
+        var result = await _controller.GetMonthlyReports(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetMonthlyReports_TrimsRequestBeforeCallingService()
+    {
+        var request = new MonthlyReportsRequest
+        {
+            BankCode = " 0070000 ",
+            ApplyYear = " 113 ",
+            ApplyMonth = " 01 "
         };
 
         _mockAgentService
             .Setup(x => x.GetMonthlyReportsAsync(It.IsAny<MonthlyReportsRequest>()))
             .ReturnsAsync(new ApiResponse<ReportsPayload> { Code = "0000", Msg = "查詢成功" });
 
-        // Act
-        var result = await _controller.GetMonthlyReports(request);
+        await _controller.GetMonthlyReports(request);
 
-        // Assert
-        Assert.IsType<OkObjectResult>(result);
+        _mockAgentService.Verify(x => x.GetMonthlyReportsAsync(It.Is<MonthlyReportsRequest>(r =>
+            r.BankCode == "0070000" && r.ApplyYear == "113" && r.ApplyMonth == "01")), Times.Once);
     }
 
     [Fact]
-    public async Task GetReportHistories_ReturnsOk()
+    public async Task GetReportHistories_ReturnsBadRequest_WhenMissingRequiredFields()
     {
-        // Arrange
         var request = new ReportHistoriesRequest
         {
             BankCode = "0070000",
-            ReportId = "AI330",
+            ReportId = "",
             Year = "113"
+        };
+
+        var result = await _controller.GetReportHistories(request);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetReportHistories_TrimsRequestBeforeCallingService()
+    {
+        var request = new ReportHistoriesRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            Year = " 113 ",
+            Type = " monthly "
         };
 
         _mockAgentService
             .Setup(x => x.GetReportHistoriesAsync(It.IsAny<ReportHistoriesRequest>()))
             .ReturnsAsync(new ApiResponse<ReportHistoriesPayload> { Code = "0000", Msg = "查詢成功" });
 
-        // Act
-        var result = await _controller.GetReportHistories(request);
+        await _controller.GetReportHistories(request);
 
-        // Assert
-        Assert.IsType<OkObjectResult>(result);
+        _mockAgentService.Verify(x => x.GetReportHistoriesAsync(It.Is<ReportHistoriesRequest>(r =>
+            r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly")), Times.Once);
     }
 }
 
