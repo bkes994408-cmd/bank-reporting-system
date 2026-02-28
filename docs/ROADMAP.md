@@ -3,7 +3,7 @@
 > 規則：所有功能合併需走 PR，並附完整測試證據（見 REVIEWING.md / PR template）。
 
 ## MVP-0：專案可開發/可測/可部署（門檻）
-- [ ] CI 全綠（後端測試 + 前端 build）
+- [x] CI 全綠（後端測試 + 前端 build + 前端 e2e）
 - [x] 前端依賴鎖定（已提交 frontend/package-lock.json，CI 使用 npm ci）
 - [x] Docker（dev/prod）可一鍵起服務（API + Web）
 - [x] Healthcheck endpoint（/health 或等效）
@@ -21,7 +21,7 @@
 ## MVP-2：完整功能測試（必備）
 - [x] 後端 unit tests 覆蓋核心 service（>= 70% 行為覆蓋）
 - [x] 後端 integration tests 覆蓋主流程（解析→申報→查詢 + reports 路徑）
-- [ ] 前端 e2e（Playwright/Cypress 擇一）覆蓋 1 條主流程
+- [x] 前端 e2e（Playwright）覆蓋 1 條主流程
 - [x] 重要安全測試：無 secrets、日誌不含敏感資料、輸入驗證
 
 ## MVP-3：PRD 部署與回滾
@@ -36,3 +36,5 @@
 - 修正 CI .NET 版本與 restore/test 範圍，避免 `backend.tests --no-restore` 失敗。
 - 補強 `/api/reports` 與 `/api/reports/histories` 輸入驗證（必填與月份格式）。
 - 提供 `docker-compose.dev.yml` + `docker-compose.yml` 一鍵啟動（dev/prod）。
+
+- 新增前端 e2e smoke 測試（公告頁→申報上傳→必填驗證）並併入 GitHub Actions。
