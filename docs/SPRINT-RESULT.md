@@ -46,3 +46,44 @@ dotnet test backend.tests/BankReporting.Tests.csproj -c Release --collect:"XPlat
 ## 後續建議
 - 補前端 e2e（Playwright）至少 1 條主流程，讓 MVP-2 全面達標。
 - 後端 coverage 可再補 controller/Program middleware 測試，提升整體覆蓋率。
+
+---
+
+## Sprint Result (2026-02-28)
+
+## 本輪完成（MVP-1 收斂 + MVP-2 E2E）
+
+1. **金鑰匯入/驗證 API 完成** ✅
+   - API：`POST /api/keys/import`、`POST /api/keys/validate`
+   - 實作重點：空白輸入防呆、輸入 trim 後再送入 service。
+   - 測試：`backend.tests/ControllersTests.cs`、`backend.tests/ServiceTests.cs` 已覆蓋主要成功/失敗路徑。
+
+2. **Token 更新 API 完成** ✅
+   - API：`POST /api/token/update`
+   - 實作重點：必填檢查、長度上限（2048）、trim 後送入 service。
+   - 測試：`backend.tests/ControllersTests.cs`、`backend.tests/ServiceTests.cs` 已覆蓋主要成功/失敗路徑。
+
+3. **前端 E2E 測試導入並落地** ✅
+   - 採用 **Playwright**。
+   - 測試檔：`frontend/e2e/main-flow.spec.js`
+   - 覆蓋流程：首頁 → 申報上傳頁 → 觸發必填驗證訊息。
+
+4. **文件更新** ✅
+   - `docs/ROADMAP.md`：勾選 MVP-2 的「前端 e2e 主流程覆蓋」。
+   - `docs/SPRINT-RESULT.md`：新增本輪成果與驗證紀錄。
+
+## 本輪驗證結果
+
+### 後端測試
+```bash
+dotnet test backend.tests/BankReporting.Tests.csproj -c Release
+```
+結果：**56 passed, 0 failed**
+
+### 前端 E2E
+```bash
+cd frontend
+npm ci
+npm run test:e2e
+```
+結果：**1 passed, 0 failed**
