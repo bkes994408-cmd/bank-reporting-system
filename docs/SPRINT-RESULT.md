@@ -1,28 +1,26 @@
 # Sprint Result (2026-02-28)
 
-## 本次加強（MVP-2 前端 e2e + CI 全綠）
+## 本輪成果總結（MVP-2 + MVP-3）
 
 1. **前端 e2e 主流程測試** ✅
    - 以 Playwright 實作 `frontend/e2e/main-flow.spec.js`
-   - 覆蓋 smoke 主流程：
-     - 進入公告資訊首頁
-     - 切換到「申報上傳」頁
-     - 觸發「確認上傳」並驗證必填提示訊息
-   - 針對 `GET /api/news` 做 route mock，避免外部 API 依賴造成不穩定。
+   - 覆蓋 smoke 主流程（公告頁 → 申報上傳頁 → 必填提示驗證）
+   - 針對 `GET /api/news` 做 route mock，避免外部依賴不穩定
 
-2. **CI 納入 e2e** ✅
+2. **CI 納入 e2e 並維持全綠** ✅
    - 更新 `.github/workflows/ci.yml`：
      - `backend`：`dotnet test`
      - `frontend-build`：`npm ci` + `npm run build`
      - `frontend-e2e`：`npm ci` + `npx playwright install --with-deps chromium` + `npm run test:e2e`
-   - 讓前端 e2e 可在 GitHub Actions 重現執行。
 
-3. **Roadmap 狀態更新** ✅
-   - `docs/ROADMAP.md` 勾選：
-     - 「前端 e2e（Playwright）覆蓋 1 條主流程」
-     - 「CI 全綠（後端測試 + 前端 build + 前端 e2e）」
+3. **MVP-3 部署與回滾文件完成** ✅
+   - `docs/DEPLOYMENT.md`：Windows Server + Docker Desktop 部署、驗證、排查流程
+   - `docs/ROLLBACK.md`：回滾策略、標準步驟、失敗處置與紀錄模板
 
-## 本地驗證結果
+4. **Roadmap 文件同步更新** ✅
+   - `docs/ROADMAP.md` 已同步反映 MVP-2/MVP-3 交付狀態
+
+## 本地驗證結果（歷次）
 
 ### 後端測試
 ```bash
@@ -46,8 +44,7 @@ npm run test:e2e
 
 ## 變更檔案
 - `.github/workflows/ci.yml`
+- `docs/DEPLOYMENT.md`
+- `docs/ROLLBACK.md`
 - `docs/ROADMAP.md`
 - `docs/SPRINT-RESULT.md`
-
-## 備註
-- 本輪採最小必要改動，未調整既有前後端架構，只補齊 e2e 與 CI 覆蓋。
