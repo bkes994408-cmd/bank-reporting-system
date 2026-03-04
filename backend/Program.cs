@@ -37,7 +37,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-if (!app.Environment.IsEnvironment("Test"))
+var disableHttpsRedirection = app.Configuration.GetValue<bool>("DISABLE_HTTPS_REDIRECTION");
+if (!app.Environment.IsEnvironment("Test") && !disableHttpsRedirection)
 {
     app.UseHttpsRedirection();
 }
@@ -86,11 +87,7 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 
 // Basic health check endpoint for load balancers / monitoring
-app.MapGet("/health", () =>
-{
-    var version = builder.Configuration["AppVersion"] ?? "1.0.0";
-    return Results.Ok(new { status = "ok", version });
-});
+app.MapGet("/health", () => Results.Text("ok", "text/plain"));
 
 app.MapControllers();
 

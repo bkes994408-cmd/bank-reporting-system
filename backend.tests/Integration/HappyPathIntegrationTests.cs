@@ -17,14 +17,19 @@ namespace BankReporting.Tests.Integration;
 public class HappyPathIntegrationTests
 {
     [Fact]
-    public async Task Health_ReturnsOk()
+    public async Task Health_ReturnsOk_WithPlainTextBody()
     {
         var mockAgentService = new Mock<IAgentService>();
-        await using var app = new TestAppFactory(mockAgentService);
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
         var resp = await client.GetAsync("/health");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.StartsWith("text/plain", resp.Content.Headers.ContentType?.ToString());
+
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Equal("ok", body);
     }
 
     [Fact]
@@ -32,14 +37,23 @@ public class HappyPathIntegrationTests
     {
         // Arrange
         var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+        var mockExcelParsingService = new Mock<IExcelParsingService>(MockBehavior.Strict);
 
-        mockAgentService
-            .Setup(x => x.ParseExcelAsync("AI330", It.IsAny<IFormFile>()))
-            .ReturnsAsync(new ApiResponse<object>
+        mockExcelParsingService
+            .Setup(x => x.ParseAsync("AI330", It.IsAny<IFormFile?>()))
+            .ReturnsAsync(new ApiResponse<ExcelParsingPayload>
             {
                 Code = "0000",
                 Msg = "parse ok",
-                Payload = new { reportId = "AI330", parsed = true }
+                Payload = new ExcelParsingPayload
+                {
+                    ReportId = "AI330",
+                    Headers = new List<string> { "Col1" },
+                    Rows = new List<Dictionary<string, string>>
+                    {
+                        new() { ["Col1"] = "Value1" }
+                    }
+                }
             });
 
         mockAgentService
@@ -70,7 +84,7 @@ public class HappyPathIntegrationTests
                 }
             });
 
-        await using var app = new TestAppFactory(mockAgentService);
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
         using var client = app.CreateClient();
 
         // 1) /api/parsing/excel
@@ -127,13 +141,86 @@ public class HappyPathIntegrationTests
         mockAgentService.VerifyAll();
     }
 
+    [Fact]
+    public async Task HappyPath_Reports_And_Histories_ReturnsOk()
+    {
+        var mockAgentService = new Mock<IAgentService>(MockBehavior.Strict);
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+
+        mockAgentService
+            .Setup(x => x.GetMonthlyReportsAsync(It.Is<MonthlyReportsRequest>(r =>
+                r.BankCode == "0070000" && r.ApplyYear == "113" && r.ApplyMonth == "01")))
+            .ReturnsAsync(new ApiResponse<ReportsPayload>
+            {
+                Code = "0000",
+                Msg = "reports ok",
+                Payload = new ReportsPayload
+                {
+                    Reports = new List<ReportDeclarationResult>
+                    {
+                        new() { BankCode = "0070000", ReportId = "AI330", Year = "113", Month = "01", Status = "PENDING" }
+                    }
+                }
+            });
+
+        mockAgentService
+            .Setup(x => x.GetReportHistoriesAsync(It.Is<ReportHistoriesRequest>(r =>
+                r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly")))
+            .ReturnsAsync(new ApiResponse<ReportHistoriesPayload>
+            {
+                Code = "0000",
+                Msg = "histories ok",
+                Payload = new ReportHistoriesPayload
+                {
+                    Reports = new List<ReportHistory>
+                    {
+                        new() { BankCode = "0070000", ReportId = "AI330", Year = "113", Month = "01", Status = "SUCCESS" }
+                    }
+                }
+            });
+
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
+        using var client = app.CreateClient();
+
+        var reportsResp = await client.PostAsJsonAsync("/api/reports", new MonthlyReportsRequest
+        {
+            BankCode = " 0070000 ",
+            ApplyYear = " 113 ",
+            ApplyMonth = " 01 "
+        });
+
+        Assert.Equal(HttpStatusCode.OK, reportsResp.StatusCode);
+        var reportsBody = await reportsResp.Content.ReadFromJsonAsync<ApiResponse<ReportsPayload>>();
+        Assert.NotNull(reportsBody);
+        Assert.Equal("0000", reportsBody!.Code);
+        Assert.Single(reportsBody.Payload!.Reports);
+
+        var historiesResp = await client.PostAsJsonAsync("/api/reports/histories", new ReportHistoriesRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            Year = " 113 ",
+            Type = " monthly "
+        });
+
+        Assert.Equal(HttpStatusCode.OK, historiesResp.StatusCode);
+        var historiesBody = await historiesResp.Content.ReadFromJsonAsync<ApiResponse<ReportHistoriesPayload>>();
+        Assert.NotNull(historiesBody);
+        Assert.Equal("0000", historiesBody!.Code);
+        Assert.Single(historiesBody.Payload!.Reports);
+
+        mockAgentService.VerifyAll();
+    }
+
     private sealed class TestAppFactory : WebApplicationFactory<Program>
     {
         private readonly Mock<IAgentService> _mockAgentService;
+        private readonly Mock<IExcelParsingService> _mockExcelParsingService;
 
-        public TestAppFactory(Mock<IAgentService> mockAgentService)
+        public TestAppFactory(Mock<IAgentService> mockAgentService, Mock<IExcelParsingService> mockExcelParsingService)
         {
             _mockAgentService = mockAgentService;
+            _mockExcelParsingService = mockExcelParsingService;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -143,7 +230,9 @@ public class HappyPathIntegrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IAgentService>();
+                services.RemoveAll<IExcelParsingService>();
                 services.AddSingleton(_mockAgentService.Object);
+                services.AddSingleton(_mockExcelParsingService.Object);
             });
         }
     }

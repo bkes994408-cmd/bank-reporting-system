@@ -78,7 +78,7 @@ bank-reporting-system/
 ### 系統需求
 - .NET 8 SDK
 - Node.js 18+
-- npm 或 pnpm
+- npm（建議使用 `npm ci` 搭配 `frontend/package-lock.json`）
 
 ### 後端啟動
 
@@ -101,8 +101,8 @@ dotnet run
 # 進入前端目錄
 cd frontend
 
-# 安裝依賴
-npm install
+# 安裝依賴（依 lockfile 安裝）
+npm ci
 
 # 啟動開發伺服器
 npm run dev
@@ -119,9 +119,29 @@ dotnet test
 
 # 執行前端 e2e 測試（Playwright）
 cd ../frontend
-npm install
+npm ci
 npx playwright install chromium
 npm run test:e2e
+```
+
+### Docker 一鍵啟動（API + Web）
+
+```bash
+# 生產模式（後端 + 前端 Nginx）
+docker compose up -d --build
+
+# 開發模式（後端 + 前端 Vite dev server）
+docker compose --profile dev up -d --build
+```
+
+- 生產模式前端：`http://localhost:8080`
+- 開發模式前端：`http://localhost:5173`
+- 後端 API：`http://localhost:5000`
+
+停止服務：
+
+```bash
+docker compose down
 ```
 
 ## 📚 API 端點
@@ -143,6 +163,7 @@ npm run test:e2e
 | POST | `/api/news/attachments` | 下載公告附件 |
 | GET | `/api/settings` | 取得系統設定 |
 | POST | `/api/settings` | 更新系統設定 |
+| GET | `/health` | 健康檢查（服務存活與版本） |
 | GET | `/metrics` | Prometheus 格式監控指標 |
 
 ## 📈 監控與告警（MVP 最小集合）
@@ -195,6 +216,18 @@ npm run test:e2e
 - `PARSING_4221`：Excel 結構不正確或不是合法 `.xlsx`
 - `PARSING_4222`：工作表缺少標題列
 - `PARSING_5000`：其他未預期錯誤
+
+### `/api/declare` 契約（MVP）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `requestId`, `bankCode`, `bankName`, `reportYear`, `reportMonth`, `reportId`
+  - `contractorName`, `contractorTel`, `contractorEmail`
+  - `managerName`, `managerTel`, `managerEmail`
+- 申報內容：`report` 與 `jwePayload` 至少需提供一個
+- 簽章/JWE（選填）：
+  - `useSignature: boolean`，為 `true` 時需提供 `signature`
+  - `useJwe: boolean`，為 `true` 時需提供 `jwePayload`
 
 ### `/api/declare/result` 契約（MVP）
 
