@@ -440,3 +440,112 @@ public class AgentServiceTests
             => _handler(request);
     }
 }
+
+public class AdAuthServiceTests
+{
+    [Fact]
+    public async Task LoginAsync_WithValidCredential_ReturnsSuccess()
+    {
+        var config = BuildConfig(enabled: true);
+        var service = new AdAuthService(config);
+
+        var result = await service.LoginAsync("demo", "demo123");
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(result.Payload);
+        Assert.Equal("demo", result.Payload!.Username);
+        Assert.Equal("CORP", result.Payload.Domain);
+        Assert.NotEmpty(result.Payload.AccessToken);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithInvalidCredential_ReturnsAuthError()
+    {
+        var config = BuildConfig(enabled: true);
+        var service = new AdAuthService(config);
+
+        var result = await service.LoginAsync("demo", "wrong");
+
+        Assert.Equal("AUTH_INVALID_CREDENTIALS", result.Code);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WhenDisabled_ReturnsDisabledError()
+    {
+        var config = BuildConfig(enabled: false);
+        var service = new AdAuthService(config);
+
+        var result = await service.LoginAsync("demo", "demo123");
+
+        Assert.Equal("AUTH_DISABLED", result.Code);
+    }
+
+    private static IConfiguration BuildConfig(bool enabled)
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AdAuth:Enabled"] = enabled.ToString(),
+                ["AdAuth:Domain"] = "CORP",
+                ["AdAuth:Users:0:Username"] = "demo",
+                ["AdAuth:Users:0:Password"] = "demo123",
+                ["AdAuth:Users:0:DisplayName"] = "Demo User",
+                ["AdAuth:Users:0:Roles:0"] = "reporter"
+            })
+            .Build();
+    }
+}
+
+public class AccountAdminServiceTests
+{
+    [Fact]
+    public async Task GetAccountsAsync_ReturnsSortedAccounts()
+    {
+        var service = new AccountAdminService(BuildConfig());
+
+        var result = await service.GetAccountsAsync();
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(result.Payload);
+        Assert.Equal(2, result.Payload!.Count);
+        Assert.Equal("alice", result.Payload[0].Username);
+        Assert.Equal("bob", result.Payload[1].Username);
+    }
+
+    [Fact]
+    public async Task UpdateRolesAsync_WhenUserExists_UpdatesRoleSet()
+    {
+        var service = new AccountAdminService(BuildConfig());
+
+        var result = await service.UpdateRolesAsync("alice", new List<string> { "admin", " admin ", "reporter" });
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(result.Payload);
+        Assert.Equal(new[] { "admin", "reporter" }, result.Payload!.Roles);
+    }
+
+    [Fact]
+    public async Task UpdateRolesAsync_WhenUserMissing_ReturnsNotFoundCode()
+    {
+        var service = new AccountAdminService(BuildConfig());
+
+        var result = await service.UpdateRolesAsync("nobody", new List<string> { "admin" });
+
+        Assert.Equal("ACCOUNT_NOT_FOUND", result.Code);
+    }
+
+    private static IConfiguration BuildConfig()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AdAuth:Users:0:Username"] = "bob",
+                ["AdAuth:Users:0:DisplayName"] = "Bob",
+                ["AdAuth:Users:0:Roles:0"] = "reporter",
+                ["AdAuth:Users:1:Username"] = "alice",
+                ["AdAuth:Users:1:DisplayName"] = "Alice",
+                ["AdAuth:Users:1:Roles:0"] = "operator"
+            })
+            .Build();
+    }
+}

@@ -1,3 +1,4 @@
+using BankReporting.Api.Middleware;
 using BankReporting.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +28,9 @@ builder.Services.AddSingleton<IExcelParsingService, ExcelParsingService>();
 builder.Services.AddSingleton<IAgentService, AgentService>();
 builder.Services.AddHttpClient<IAgentService, AgentService>();
 builder.Services.AddSingleton<IMonitoringService, MonitoringService>();
+builder.Services.AddSingleton<IAdAuthService, AdAuthService>();
+builder.Services.AddSingleton<IAdminService, AdminService>();
+builder.Services.AddSingleton<IAccountAdminService, AccountAdminService>();
 
 var app = builder.Build();
 
@@ -43,6 +47,7 @@ if (!app.Environment.IsEnvironment("Test") && !disableHttpsRedirection)
     app.UseHttpsRedirection();
 }
 app.UseCors("AllowFrontend");
+app.UseMiddleware<AdminAuthorizationMiddleware>();
 
 app.Use(async (context, next) =>
 {

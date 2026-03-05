@@ -100,4 +100,23 @@ export const updateSettings = (data) => {
   return api.post('/settings', data)
 }
 
+// Admin APIs (MVP)
+export const getAdminUsers = () => {
+  return api.get('/admin/users', {
+    headers: { 'X-Role': 'admin' }
+  })
+}
+
+export const createAdminUser = (data) => {
+  return api.post('/admin/users', data, {
+    headers: { 'X-Role': 'admin' }
+  })
+}
+
+export const getAdminRoles = () => {
+  return api.get('/admin/roles', {
+    headers: { 'X-Role': 'admin' }
+  })
+}
+
 export default api

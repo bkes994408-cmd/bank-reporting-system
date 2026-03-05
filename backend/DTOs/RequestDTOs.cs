@@ -121,3 +121,39 @@ public class AttachmentDownloadRequest
     public string Name { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// AD 網域登入請求
+/// </summary>
+public class AdLoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 新增後台使用者
+/// </summary>
+public class AdminCreateUserRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+}
+
+/// <summary>
+/// 更新後台使用者角色
+/// </summary>
+public class AdminUpdateUserRolesRequest
+{
+    public List<string> Roles { get; set; } = new();
+}
+
+/// <summary>
+/// 後台更新帳號權限請求
+/// </summary>
+public class UpdateAccountRolesRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+}
