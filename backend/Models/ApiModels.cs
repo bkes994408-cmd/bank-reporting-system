@@ -137,3 +137,49 @@ public class ReportHistoriesPayload
 {
     public List<ReportHistory> Reports { get; set; } = new();
 }
+
+/// <summary>
+/// AD 網域登入成功回傳
+/// </summary>
+public class AdLoginPayload
+{
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Domain { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+    public string AccessToken { get; set; } = string.Empty;
+    public DateTime ExpiresAtUtc { get; set; }
+}
+
+public class AdminUser
+{
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+}
+
+public class AdminRole
+{
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
+
+public class AdminUsersPayload
+{
+    public List<AdminUser> Users { get; set; } = new();
+}
+
+public class AdminRolesPayload
+{
+    public List<AdminRole> Roles { get; set; } = new();
+}
+
+/// <summary>
+/// 後台帳號摘要
+/// </summary>
+public class AccountSummary
+{
+    public string Username { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+}

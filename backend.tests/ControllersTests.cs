@@ -674,3 +674,88 @@ public class SystemControllerTests
         Assert.IsType<OkObjectResult>(result);
     }
 }
+
+public class AuthControllerTests
+{
+    [Fact]
+    public async Task AdLogin_WithValidCredential_ReturnsOk()
+    {
+        var mockAdAuth = new Mock<IAdAuthService>();
+        mockAdAuth
+            .Setup(x => x.LoginAsync("demo", "demo123"))
+            .ReturnsAsync(new ApiResponse<AdLoginPayload>
+            {
+                Code = "0000",
+                Msg = "登入成功",
+                Payload = new AdLoginPayload { Username = "demo", Domain = "CORP" }
+            });
+
+        var controller = new AuthController(mockAdAuth.Object);
+        var result = await controller.AdLogin(new AdLoginRequest { Username = " demo ", Password = "demo123" });
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task AdLogin_WithEmptyInput_ReturnsBadRequest()
+    {
+        var mockAdAuth = new Mock<IAdAuthService>();
+        var controller = new AuthController(mockAdAuth.Object);
+
+        var result = await controller.AdLogin(new AdLoginRequest { Username = " ", Password = "" });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task AdLogin_WithInvalidCredential_ReturnsUnauthorized()
+    {
+        var mockAdAuth = new Mock<IAdAuthService>();
+        mockAdAuth
+            .Setup(x => x.LoginAsync("demo", "wrong"))
+            .ReturnsAsync(new ApiResponse<AdLoginPayload>
+            {
+                Code = "AUTH_INVALID_CREDENTIALS",
+                Msg = "網域帳號或密碼錯誤"
+            });
+
+        var controller = new AuthController(mockAdAuth.Object);
+        var result = await controller.AdLogin(new AdLoginRequest { Username = "demo", Password = "wrong" });
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+}
+
+public class AdminControllerTests
+{
+    [Fact]
+    public void GetRoles_ReturnsOk()
+    {
+        var mockAdminService = new Mock<IAdminService>();
+        mockAdminService.Setup(x => x.GetRoles()).Returns(new List<AdminRole> { new() { Name = "admin", Description = "系統管理者" } });
+
+        var controller = new AdminController(mockAdminService.Object);
+        var result = controller.GetRoles();
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public void CreateUser_WhenUserExists_ReturnsConflict()
+    {
+        var mockAdminService = new Mock<IAdminService>();
+        mockAdminService
+            .Setup(x => x.CreateUser("demo", "Demo", It.IsAny<List<string>>()))
+            .Returns(new ApiResponse<AdminUser> { Code = "ADMIN_USER_EXISTS", Msg = "使用者已存在" });
+
+        var controller = new AdminController(mockAdminService.Object);
+        var result = controller.CreateUser(new AdminCreateUserRequest
+        {
+            Username = "demo",
+            DisplayName = "Demo",
+            Roles = new List<string> { "admin" }
+        });
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+}

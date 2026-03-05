@@ -14,7 +14,7 @@ using Xunit;
 
 namespace BankReporting.Tests.Integration;
 
-public class HappyPathIntegrationTests
+public partial class HappyPathIntegrationTests
 {
     [Fact]
     public async Task Health_ReturnsOk_WithPlainTextBody()
@@ -235,5 +235,35 @@ public class HappyPathIntegrationTests
                 services.AddSingleton(_mockExcelParsingService.Object);
             });
         }
+    }
+}
+
+public partial class HappyPathIntegrationTests
+{
+    [Fact]
+    public async Task AdminRoute_WithoutAdminHeader_ReturnsForbidden()
+    {
+        var mockAgentService = new Mock<IAgentService>();
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
+        using var client = app.CreateClient();
+
+        var resp = await client.GetAsync("/api/admin/users");
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminRoute_WithAdminHeader_ReturnsOk()
+    {
+        var mockAgentService = new Mock<IAgentService>();
+        var mockExcelParsingService = new Mock<IExcelParsingService>();
+        await using var app = new TestAppFactory(mockAgentService, mockExcelParsingService);
+        using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Role", "admin");
+
+        var resp = await client.GetAsync("/api/admin/users");
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
 }

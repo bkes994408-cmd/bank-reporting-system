@@ -46,6 +46,10 @@
             <span class="nav-item-icon">🔧</span>
             <span>系統參數設定</span>
           </router-link>
+          <router-link to="/admin" class="nav-item" active-class="active">
+            <span class="nav-item-icon">🛡️</span>
+            <span>後臺管理</span>
+          </router-link>
         </div>
       </nav>
     </aside>

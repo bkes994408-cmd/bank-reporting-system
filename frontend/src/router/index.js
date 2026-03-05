@@ -42,6 +42,12 @@ const routes = [
     name: 'system',
     component: () => import('../views/SystemView.vue'),
     meta: { title: '系統參數設定' }
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('../views/AdminView.vue'),
+    meta: { title: '後臺管理' }
   }
 ]
 
