@@ -30,7 +30,6 @@ builder.Services.AddHttpClient<IAgentService, AgentService>();
 builder.Services.AddSingleton<IMonitoringService, MonitoringService>();
 builder.Services.AddSingleton<IAdAuthService, AdAuthService>();
 builder.Services.AddSingleton<IAdminService, AdminService>();
-builder.Services.AddSingleton<IAccountAdminService, AccountAdminService>();
 
 var app = builder.Build();
 

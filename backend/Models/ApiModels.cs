@@ -174,12 +174,3 @@ public class AdminRolesPayload
     public List<AdminRole> Roles { get; set; } = new();
 }
 
-/// <summary>
-/// 後台帳號摘要
-/// </summary>
-public class AccountSummary
-{
-    public string Username { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public List<string> Roles { get; set; } = new();
-}
