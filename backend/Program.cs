@@ -48,46 +48,7 @@ if (!app.Environment.IsEnvironment("Test") && !disableHttpsRedirection)
 }
 app.UseCors("AllowFrontend");
 app.UseMiddleware<AdminAuthorizationMiddleware>();
-
-app.Use(async (context, next) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RequestMonitoring");
-    var monitoringService = context.RequestServices.GetRequiredService<IMonitoringService>();
-
-    var startedAt = DateTime.UtcNow;
-    try
-    {
-        await next();
-    }
-    finally
-    {
-        var durationMs = (long)(DateTime.UtcNow - startedAt).TotalMilliseconds;
-        var path = context.Request.Path.HasValue ? context.Request.Path.Value! : "/";
-        monitoringService.RecordRequest(context.Request.Method, path, context.Response.StatusCode, durationMs);
-
-        logger.LogInformation("HTTP {Method} {Path} => {StatusCode} ({DurationMs}ms)",
-            context.Request.Method,
-            path,
-            context.Response.StatusCode,
-            durationMs);
-
-        if (context.Response.StatusCode >= 500)
-        {
-            logger.LogWarning("ALERT: High-severity API error detected. {Method} {Path} => {StatusCode}",
-                context.Request.Method,
-                path,
-                context.Response.StatusCode);
-        }
-
-        if (durationMs >= 2000)
-        {
-            logger.LogWarning("ALERT: Slow API response detected. {Method} {Path} took {DurationMs}ms",
-                context.Request.Method,
-                path,
-                durationMs);
-        }
-    }
-});
+app.UseMiddleware<RequestMonitoringMiddleware>();
 
 app.UseAuthorization();
 

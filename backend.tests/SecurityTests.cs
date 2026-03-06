@@ -40,10 +40,10 @@ public class SecurityTests
     [Fact]
     public void RequestLogging_ShouldAvoidSensitiveFields()
     {
-        var programPath = Path.Combine(RepoRoot, "backend", "Program.cs");
-        var content = File.ReadAllText(programPath);
+        var middlewarePath = Path.Combine(RepoRoot, "backend", "Middleware", "RequestMonitoringMiddleware.cs");
+        var content = File.ReadAllText(middlewarePath);
 
-        var requestLogLine = "logger.LogInformation(\"HTTP {Method} {Path} => {StatusCode} ({DurationMs}ms)\"";
+        var requestLogLine = "_logger.LogInformation(\"HTTP {Method} {Path} => {StatusCode} ({DurationMs}ms)\"";
         Assert.Contains(requestLogLine, content);
 
         var sensitiveFields = new[] { "Authorization", "Token", "KeyA", "KeyB" };

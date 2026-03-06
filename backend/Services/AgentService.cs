@@ -23,20 +23,12 @@ public interface IAgentService
 public class AgentService : IAgentService
 {
     private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
     private readonly string _baseUrl;
 
     public AgentService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
-        _configuration = configuration;
         _baseUrl = configuration["AgentSettings:BaseUrl"] ?? "https://127.0.0.1:8005/APBSA";
-        
-        // 忽略SSL證書驗證（開發環境）
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-        };
     }
 
     public async Task<ApiResponse<object>> ParseExcelAsync(string reportId, IFormFile file)
