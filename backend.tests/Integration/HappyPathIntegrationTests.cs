@@ -103,6 +103,8 @@ public partial class HappyPathIntegrationTests
         Assert.Equal("0000", parseBody!.Code);
 
         // 2) /api/declare
+        client.DefaultRequestHeaders.Add("X-Role", "reporter");
+
         var declareReq = new DeclareRequest
         {
             RequestId = "0070000-123",

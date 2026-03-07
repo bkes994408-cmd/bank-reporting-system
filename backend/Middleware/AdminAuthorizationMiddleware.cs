@@ -56,6 +56,12 @@ public class AdminAuthorizationMiddleware
             return true;
         }
 
+        if (path.Equals("/api/declare", StringComparison.OrdinalIgnoreCase) &&
+            HttpMethods.IsPost(method))
+        {
+            return true;
+        }
+
         return false;
     }
 
