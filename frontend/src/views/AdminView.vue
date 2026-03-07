@@ -10,6 +10,13 @@
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
+      <h3>可用角色</h3>
+      <p style="margin: 0; color: #666;">
+        {{ availableRoles.length ? availableRoles.join(', ') : '載入中...' }}
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
       <h3>新增使用者</h3>
       <div class="form-grid">
         <div class="form-group">
@@ -61,12 +68,22 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createAdminUser, getAdminUsers, updateAdminUserRoles } from '../services/api'
+import { createAdminUser, getAdminRoles, getAdminUsers, updateAdminUserRoles } from '../services/api'
 
 const users = ref([])
 const message = ref(null)
 const editableRoles = ref({})
+const availableRoles = ref([])
 const newUser = ref({ username: '', displayName: '', roles: 'viewer' })
+
+const loadRoles = async () => {
+  try {
+    const res = await getAdminRoles()
+    availableRoles.value = (res?.payload?.roles || []).map(r => r.name)
+  } catch {
+    availableRoles.value = []
+  }
+}
 
 const loadUsers = async () => {
   const res = await getAdminUsers()
@@ -110,5 +127,7 @@ const saveRoles = async (username) => {
   }
 }
 
-onMounted(loadUsers)
+onMounted(async () => {
+  await Promise.all([loadRoles(), loadUsers()])
+})
 </script>
