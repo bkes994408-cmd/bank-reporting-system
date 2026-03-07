@@ -71,7 +71,7 @@ public class MonitoringService : IMonitoringService
     }
 
     private static string BuildRouteKey(string method, string path)
-        => $"{method.ToUpperInvariant()} {NormalizePath(path)}";
+        => string.Concat(method, " ", NormalizePath(path));
 
     private static string NormalizePath(string path)
     {

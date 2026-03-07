@@ -25,8 +25,13 @@ builder.Services.AddCors(options =>
 
 // Register services
 builder.Services.AddSingleton<IExcelParsingService, ExcelParsingService>();
-builder.Services.AddSingleton<IAgentService, AgentService>();
-builder.Services.AddHttpClient<IAgentService, AgentService>();
+builder.Services.AddHttpClient<IAgentService, AgentService>((sp, client) =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = configuration["AgentSettings:BaseUrl"] ?? "https://127.0.0.1:8005/APBSA";
+    client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : $"{baseUrl}/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddSingleton<IMonitoringService, MonitoringService>();
 builder.Services.AddSingleton<IAdAuthService, AdAuthService>();
 builder.Services.AddSingleton<IAdminService, AdminService>();
