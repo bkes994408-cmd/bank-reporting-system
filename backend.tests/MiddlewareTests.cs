@@ -63,6 +63,35 @@ public class MiddlewareTests
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
 
+    [Fact]
+    public async Task AdminAuthorizationMiddleware_AllowsReporterOnDeclareRoute()
+    {
+        var middleware = BuildMiddleware(out var called);
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/declare";
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Role"] = "reporter";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(called());
+    }
+
+    [Fact]
+    public async Task AdminAuthorizationMiddleware_RejectsViewerOnDeclareRoute()
+    {
+        var middleware = BuildMiddleware(out var called);
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/declare";
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers["X-Role"] = "viewer";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(called());
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+    }
+
     private static AdminAuthorizationMiddleware BuildMiddleware(out Func<bool> called)
     {
         var config = new ConfigurationBuilder()
