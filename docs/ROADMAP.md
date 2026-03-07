@@ -33,12 +33,15 @@
 - [x] 監控/告警最小集合（logs + basic metrics）
 
 ## MVP-4：持續優化與新功能
-- [ ] 針對現有功能進行性能瓶頸分析和優化
-- [ ] 審視程式碼庫，解決潛在的技術債務，提升可維護性
-- [ ] 根據使用者回饋或市場新需求，分析並規劃新的功能迭代
+- [x] 針對現有功能進行性能瓶頸分析和優化
+- [x] 審視程式碼庫，解決潛在的技術債務，提升可維護性
+- [x] 根據使用者回饋或市場新需求，分析並規劃新的功能迭代
 
 ## 本輪（Sprint）完成摘要
 - 完成 `docs/DEPLOYMENT.md`：Windows Server + Docker Desktop 部署流程（環境準備、Compose 配置、啟動與驗證、故障排查）。
 - 完成 `docs/ROLLBACK.md`：部署異常時的標準回滾策略、指令與驗證步驟。
 - 完成 `docs/SPRINT-RESULT.md`：記錄本輪 MVP-3 文件交付內容與驗證方式。
-- 新增後台帳號管理 API 雛型：`GET /api/admin/accounts`、`PUT /api/admin/accounts/roles`，作為「帳號權限管理」roadmap 項目的後端基礎（已補單元測試）。
+- 完成 AD 登入 + 後台管理 + 帳號權限管理（PR #51）。
+- 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
+- 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
+- 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。
