@@ -116,4 +116,8 @@ export const getAdminRoles = () => {
   return api.get('/admin/roles')
 }
 
+export const updateAdminUserRoles = (username, roles) => {
+  return api.put(`/admin/users/${encodeURIComponent(username)}/roles`, { roles })
+}
+
 export default api
