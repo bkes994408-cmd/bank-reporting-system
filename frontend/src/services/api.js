@@ -11,6 +11,9 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   config => {
+    // RBAC 測試用：允許前端切換角色（預設 reporter）
+    const role = localStorage.getItem('activeRole') || 'reporter'
+    config.headers['X-Role'] = role
     return config
   },
   error => {
@@ -102,21 +105,15 @@ export const updateSettings = (data) => {
 
 // Admin APIs (MVP)
 export const getAdminUsers = () => {
-  return api.get('/admin/users', {
-    headers: { 'X-Role': 'admin' }
-  })
+  return api.get('/admin/users')
 }
 
 export const createAdminUser = (data) => {
-  return api.post('/admin/users', data, {
-    headers: { 'X-Role': 'admin' }
-  })
+  return api.post('/admin/users', data)
 }
 
 export const getAdminRoles = () => {
-  return api.get('/admin/roles', {
-    headers: { 'X-Role': 'admin' }
-  })
+  return api.get('/admin/roles')
 }
 
 export default api

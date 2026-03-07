@@ -12,6 +12,21 @@
       {{ message.type === 'success' ? '✅' : '❌' }} {{ message.text }}
     </div>
 
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">🛡️ 目前測試角色</h2>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Active Role（會帶入 X-Role header）</label>
+        <select v-model="activeRole" @change="persistRole" class="form-input">
+          <option value="admin">admin</option>
+          <option value="superadmin">superadmin</option>
+          <option value="reporter">reporter</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Version Card -->
     <div class="card">
       <div class="card-header">
@@ -146,6 +161,7 @@ const loading = ref(false)
 const message = ref(null)
 const showTokenModal = ref(false)
 const showKeyModal = ref(false)
+const activeRole = ref('reporter')
 
 const agentInfo = reactive({
   version: '',
@@ -269,7 +285,13 @@ const validateKeysAction = async () => {
   }
 }
 
+const persistRole = () => {
+  localStorage.setItem('activeRole', activeRole.value)
+  message.value = { type: 'success', text: `已切換測試角色為 ${activeRole.value}` }
+}
+
 onMounted(() => {
+  activeRole.value = localStorage.getItem('activeRole') || 'reporter'
   fetchInfo()
   checkVersion()
 })
