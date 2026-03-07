@@ -3,10 +3,21 @@ namespace BankReporting.Api.Middleware;
 public class AdminAuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly HashSet<string> _adminRoles;
 
-    public AdminAuthorizationMiddleware(RequestDelegate next)
+    public AdminAuthorizationMiddleware(RequestDelegate next, IConfiguration configuration)
     {
         _next = next;
+        var configuredRoles = configuration.GetSection("Authorization:AdminRoles").Get<string[]>() ?? Array.Empty<string>();
+        _adminRoles = configuredRoles
+            .Select(x => x?.Trim() ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (_adminRoles.Count == 0)
+        {
+            _adminRoles.Add("admin");
+        }
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -19,7 +30,7 @@ public class AdminAuthorizationMiddleware
         }
 
         var roleHeader = context.Request.Headers["X-Role"].FirstOrDefault();
-        if (!string.Equals(roleHeader, "admin", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(roleHeader) || !_adminRoles.Contains(roleHeader.Trim()))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
