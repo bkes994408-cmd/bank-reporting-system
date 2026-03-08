@@ -45,3 +45,4 @@
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。
+- 完成「根據使用者回饋或市場新需求，分析並規劃新的功能迭代」：新增 `docs/FEATURE-ITERATION-ANALYSIS.md`（本 PR）。
