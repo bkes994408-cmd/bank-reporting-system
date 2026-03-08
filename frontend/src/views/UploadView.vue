@@ -176,8 +176,8 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { parseExcelWithContact, declare } from '../services/api'
+import { ref, reactive, onMounted } from 'vue'
+import { parseExcelWithContact, declare, getReportCatalog } from '../services/api'
 
 const loading = ref(false)
 const message = ref(null)
@@ -185,29 +185,7 @@ const fileInput = ref(null)
 const selectedFile = ref(null)
 const uploadType = ref('excel')
 
-const reportTypes = [
-  { id: 'AI302', name: '資產負債表' },
-  { id: 'AI330', name: '授信擔保品別分析表' },
-  { id: 'AI335', name: '大額授信資料表' },
-  { id: 'AI341', name: '逾期放款統計表' },
-  { id: 'AI345', name: '逾期放款資料表' },
-  { id: 'AI346', name: '逾期放款結構分析表' },
-  { id: 'AI370', name: '聯合授信個案資料表' },
-  { id: 'AI372', name: '聯合授信額度資料表' },
-  { id: 'AI395', name: '不動產放款資料表' },
-  { id: 'AI397', name: '購屋貸款資料表' },
-  { id: 'AI501', name: '存放款利率表' },
-  { id: 'AI505', name: '存款結構分析表' },
-  { id: 'AI515', name: '放款結構分析表' },
-  { id: 'AI520', name: '利率敏感度缺口表' },
-  { id: 'AI555', name: '消費性放款資料表' },
-  { id: 'AI560', name: '信用卡業務資料表' },
-  { id: 'AI812', name: '資本適足率報表' },
-  { id: 'AI813', name: '槓桿比率表' },
-  { id: 'AI814', name: '流動性覆蓋比率表' },
-  { id: 'AI823', name: '淨穩定資金比率表' },
-  { id: 'AI863', name: '資產品質分析表' }
-]
+const reportTypes = ref([])
 
 const form = reactive({
   requestId: '',
@@ -374,4 +352,15 @@ const resetForm = () => {
     fileInput.value.value = ''
   }
 }
+
+onMounted(async () => {
+  try {
+    const response = await getReportCatalog()
+    if (response.code === '0000' && response.payload?.items) {
+      reportTypes.value = response.payload.items
+    }
+  } catch (error) {
+    console.error('Failed to load report catalog:', error)
+  }
+})
 </script>

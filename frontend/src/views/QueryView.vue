@@ -47,11 +47,11 @@
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
           <label 
             v-for="report in reportTypes" 
-            :key="report"
+            :key="report.id"
             style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
           >
-            <input type="checkbox" :value="report" v-model="searchForm.reportIds" />
-            {{ report }}
+            <input type="checkbox" :value="report.id" v-model="searchForm.reportIds" />
+            {{ report.id }}
           </label>
         </div>
       </div>
@@ -182,8 +182,8 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { getDeclareResult } from '../services/api'
+import { ref, reactive, onMounted } from 'vue'
+import { getReportCatalog } from '../services/api'
 
 const loading = ref(false)
 const searched = ref(false)
@@ -193,12 +193,7 @@ const showErrorModal = ref(false)
 const selectedReport = ref(null)
 const currentErrors = ref([])
 
-const reportTypes = [
-  'AI302', 'AI330', 'AI335', 'AI341', 'AI345', 'AI346',
-  'AI370', 'AI372', 'AI395', 'AI397', 'AI501', 'AI505',
-  'AI515', 'AI520', 'AI555', 'AI560', 'AI812', 'AI813',
-  'AI814', 'AI823', 'AI863'
-]
+const reportTypes = ref([])
 
 const searchForm = reactive({
   bankCode: '',
@@ -289,4 +284,15 @@ const exportReport = (report) => {
   link.click()
   URL.revokeObjectURL(url)
 }
+
+onMounted(async () => {
+  try {
+    const response = await getReportCatalog()
+    if (response.code === '0000' && response.payload?.items) {
+      reportTypes.value = response.payload.items
+    }
+  } catch (error) {
+    console.error('Failed to load report catalog:', error)
+  }
+})
 </script>
