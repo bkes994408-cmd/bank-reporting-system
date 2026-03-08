@@ -108,6 +108,16 @@ public class ImportKeysRequest
 }
 
 /// <summary>
+/// 直接 JWE 加密請求
+/// </summary>
+public class JweEncryptRequest
+{
+    public object? Payload { get; set; }
+    public string PublicKeyPem { get; set; } = string.Empty;
+    public string? KeyId { get; set; }
+}
+
+/// <summary>
 /// 更新Token請求
 /// </summary>
 public class UpdateTokenRequest

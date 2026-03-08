@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using BankReporting.Api.DTOs;
@@ -496,3 +497,29 @@ public class AdAuthServiceTests
     }
 }
 
+
+public class JweEncryptionServiceTests
+{
+    [Fact]
+    public void EncryptToCompactJwe_ReturnsFivePartCompactToken()
+    {
+        using var rsa = RSA.Create(2048);
+        var publicPem = rsa.ExportRSAPublicKeyPem();
+        var service = new JweEncryptionService();
+
+        var token = service.EncryptToCompactJwe(new { hello = "world" }, publicPem, "bank-key-1");
+
+        var parts = token.Split('.');
+        Assert.Equal(5, parts.Length);
+        Assert.All(parts, p => Assert.False(string.IsNullOrWhiteSpace(p)));
+    }
+
+    [Fact]
+    public void EncryptToCompactJwe_WithInvalidPublicKey_Throws()
+    {
+        var service = new JweEncryptionService();
+
+        Assert.ThrowsAny<Exception>(() =>
+            service.EncryptToCompactJwe(new { x = 1 }, "invalid-public-key"));
+    }
+}
