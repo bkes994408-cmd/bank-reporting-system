@@ -85,6 +85,20 @@ public class ReportHistoriesRequest
 }
 
 /// <summary>
+/// 歷史資料歸檔查詢請求
+/// </summary>
+public class ArchivedReportHistoriesQueryRequest
+{
+    public string? BankCode { get; set; }
+    public string? ReportId { get; set; }
+    public string? Year { get; set; }
+    public string? Type { get; set; }
+    public string? Status { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
 /// 匯入金鑰請求
 /// </summary>
 public class ImportKeysRequest

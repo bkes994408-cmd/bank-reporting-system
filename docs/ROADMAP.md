@@ -39,6 +39,7 @@
 
 ## MVP-5：進階整合與合規
 - [x] 第三方系統 API 整合（如會計軟體、ERP）
+- [x] 歷史數據歸檔與查詢優化
 - [ ] 稽核軌跡（Audit Trail）與操作留痕查詢
 - [ ] 匯出報表與申報結果的加密封存策略
 - [ ] 對外整合重試/補償機制（含死信佇列）
@@ -49,6 +50,7 @@
 - 完成 `docs/SPRINT-RESULT.md`：記錄本輪 MVP-3 文件交付內容與驗證方式。
 - 完成 AD 登入 + 後台管理 + 帳號權限管理（PR #51）。
 - 完成 MVP-5 首項「第三方系統 API 整合（如會計軟體、ERP）」：新增 `/api/integrations/third-party/systems`、`/api/integrations/third-party/sync` 與可配置整合設定 `ThirdPartyIntegrations:Systems`。
+- 完成 MVP-5 項目「歷史數據歸檔與查詢優化」：新增 `/api/reports/histories/archive` 與 `/api/reports/histories/archive/query`，支援歸檔封存、條件查詢與分頁。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

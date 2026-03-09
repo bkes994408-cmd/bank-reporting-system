@@ -171,12 +171,14 @@ public class DeclareControllerTests
 public class ReportsControllerTests
 {
     private readonly Mock<IAgentService> _mockAgentService;
+    private readonly Mock<IReportHistoryArchiveService> _mockArchiveService;
     private readonly ReportsController _controller;
 
     public ReportsControllerTests()
     {
         _mockAgentService = new Mock<IAgentService>();
-        _controller = new ReportsController(_mockAgentService.Object);
+        _mockArchiveService = new Mock<IReportHistoryArchiveService>();
+        _controller = new ReportsController(_mockAgentService.Object, _mockArchiveService.Object);
     }
 
     [Fact]
@@ -277,6 +279,52 @@ public class ReportsControllerTests
 
         _mockAgentService.Verify(x => x.GetReportHistoriesAsync(It.Is<ReportHistoriesRequest>(r =>
             r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly")), Times.Once);
+    }
+
+    [Fact]
+    public async Task ArchiveReportHistories_TrimsRequestBeforeCallingService()
+    {
+        var request = new ReportHistoriesRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            Year = " 113 ",
+            Type = " monthly "
+        };
+
+        _mockArchiveService
+            .Setup(x => x.ArchiveAsync(It.IsAny<ReportHistoriesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
+
+        var result = await _controller.ArchiveReportHistories(request);
+
+        Assert.IsType<OkObjectResult>(result);
+        _mockArchiveService.Verify(x => x.ArchiveAsync(It.Is<ReportHistoriesRequest>(r =>
+            r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly"), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void QueryArchivedReportHistories_ReturnsOk()
+    {
+        _mockArchiveService
+            .Setup(x => x.Query(It.IsAny<ArchivedReportHistoriesQueryRequest>()))
+            .Returns(new ArchivedReportHistoriesPayload
+            {
+                Total = 1,
+                Page = 1,
+                PageSize = 20,
+                Reports = new List<ArchivedReportHistoryRecord>()
+            });
+
+        var result = _controller.QueryArchivedReportHistories(new ArchivedReportHistoriesQueryRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 "
+        });
+
+        Assert.IsType<OkObjectResult>(result);
+        _mockArchiveService.Verify(x => x.Query(It.Is<ArchivedReportHistoriesQueryRequest>(r =>
+            r.BankCode == "0070000" && r.ReportId == "AI330")), Times.Once);
     }
 }
 
