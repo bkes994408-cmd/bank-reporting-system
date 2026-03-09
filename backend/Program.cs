@@ -32,6 +32,7 @@ builder.Services.AddSingleton<IAdAuthService, AdAuthService>();
 builder.Services.AddSingleton<IAdminService, AdminService>();
 builder.Services.AddSingleton<IThirdPartyIntegrationService, ThirdPartyIntegrationService>();
 builder.Services.AddSingleton<IReportHistoryArchiveService, ReportHistoryArchiveService>();
+builder.Services.AddSingleton<IComplianceAuditService, ComplianceAuditService>();
 
 var app = builder.Build();
 

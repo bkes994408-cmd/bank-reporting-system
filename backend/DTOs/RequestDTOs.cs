@@ -187,3 +187,37 @@ public class ThirdPartySyncRequest
     public string? TransactionId { get; set; }
     public object? Data { get; set; }
 }
+
+/// <summary>
+/// 生成合規性審計報告請求
+/// </summary>
+public class ComplianceAuditReportGenerateRequest
+{
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+}
+
+/// <summary>
+/// 合規性審計報告查詢請求
+/// </summary>
+public class ComplianceAuditReportQueryRequest
+{
+    public DateTime? FromGeneratedAtUtc { get; set; }
+    public DateTime? ToGeneratedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
+/// 稽核軌跡查詢請求
+/// </summary>
+public class AuditTrailQueryRequest
+{
+    public string? User { get; set; }
+    public string? Path { get; set; }
+    public string? RiskLevel { get; set; }
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
