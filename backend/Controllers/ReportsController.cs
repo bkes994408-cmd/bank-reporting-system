@@ -11,11 +11,16 @@ public class ReportsController : ControllerBase
 {
     private readonly IAgentService _agentService;
     private readonly IReportHistoryArchiveService _archiveService;
+    private readonly IEncryptedExportArchiveService _encryptedExportArchiveService;
 
-    public ReportsController(IAgentService agentService, IReportHistoryArchiveService archiveService)
+    public ReportsController(
+        IAgentService agentService,
+        IReportHistoryArchiveService archiveService,
+        IEncryptedExportArchiveService encryptedExportArchiveService)
     {
         _agentService = agentService;
         _archiveService = archiveService;
+        _encryptedExportArchiveService = encryptedExportArchiveService;
     }
 
     /// <summary>
@@ -123,6 +128,110 @@ public class ReportsController : ControllerBase
 
         var result = _archiveService.Query(sanitizedRequest);
         return Ok(new ApiResponse<ArchivedReportHistoriesPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    /// <summary>
+    /// 以 AES-GCM 加密封存報表歷程匯出資料
+    /// </summary>
+    [HttpPost("secure-archive/report-histories")]
+    public async Task<IActionResult> ArchiveReportHistoriesEncrypted([FromBody] ReportHistoriesRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BankCode) ||
+            string.IsNullOrWhiteSpace(request.ReportId) ||
+            string.IsNullOrWhiteSpace(request.Year))
+        {
+            return BadRequest(new { code = "4000", msg = "bankCode、reportId、year 為必填" });
+        }
+
+        var sanitizedRequest = new ReportHistoriesRequest
+        {
+            BankCode = request.BankCode.Trim(),
+            ReportId = request.ReportId.Trim(),
+            Year = request.Year.Trim(),
+            Type = request.Type?.Trim()
+        };
+
+        var record = await _encryptedExportArchiveService.ArchiveReportHistoriesAsync(sanitizedRequest, CancellationToken.None);
+        return Ok(new ApiResponse<object>
+        {
+            Code = "0000",
+            Msg = "加密封存成功",
+            Payload = new
+            {
+                record.ArchiveId,
+                record.Category,
+                record.BankCode,
+                record.ReportId,
+                record.Year,
+                record.DataSha256Hex,
+                record.ArchivedAtUtc
+            }
+        });
+    }
+
+    /// <summary>
+    /// 以 AES-GCM 加密封存申報結果匯出資料
+    /// </summary>
+    [HttpPost("secure-archive/declare-result")]
+    public async Task<IActionResult> ArchiveDeclareResultEncrypted([FromBody] DeclareResultRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RequestId) && string.IsNullOrWhiteSpace(request.TransactionId))
+        {
+            return BadRequest(new { code = "4000", msg = "requestId 或 transactionId 至少需填一個" });
+        }
+
+        var sanitizedRequest = new DeclareResultRequest
+        {
+            RequestId = request.RequestId?.Trim(),
+            TransactionId = request.TransactionId?.Trim()
+        };
+
+        var record = await _encryptedExportArchiveService.ArchiveDeclareResultAsync(sanitizedRequest, CancellationToken.None);
+        return Ok(new ApiResponse<object>
+        {
+            Code = "0000",
+            Msg = "加密封存成功",
+            Payload = new
+            {
+                record.ArchiveId,
+                record.Category,
+                record.BankCode,
+                record.ReportId,
+                record.Year,
+                record.RequestIdMasked,
+                record.TransactionIdMasked,
+                record.DataSha256Hex,
+                record.ArchivedAtUtc
+            }
+        });
+    }
+
+    /// <summary>
+    /// 查詢加密封存紀錄（僅回傳遮罩後 metadata）
+    /// </summary>
+    [HttpPost("secure-archive/query")]
+    public IActionResult QueryEncryptedArchive([FromBody] EncryptedArchiveQueryRequest request)
+    {
+        var sanitizedRequest = new EncryptedArchiveQueryRequest
+        {
+            Category = request.Category?.Trim(),
+            BankCode = request.BankCode?.Trim(),
+            ReportId = request.ReportId?.Trim(),
+            RequestId = request.RequestId?.Trim(),
+            TransactionId = request.TransactionId?.Trim(),
+            StartDateUtc = request.StartDateUtc,
+            EndDateUtc = request.EndDateUtc,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _encryptedExportArchiveService.Query(sanitizedRequest);
+        return Ok(new ApiResponse<EncryptedArchiveQueryPayload>
         {
             Code = "0000",
             Msg = "查詢成功",

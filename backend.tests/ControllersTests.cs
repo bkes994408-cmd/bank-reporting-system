@@ -172,13 +172,15 @@ public class ReportsControllerTests
 {
     private readonly Mock<IAgentService> _mockAgentService;
     private readonly Mock<IReportHistoryArchiveService> _mockArchiveService;
+    private readonly Mock<IEncryptedExportArchiveService> _mockEncryptedArchiveService;
     private readonly ReportsController _controller;
 
     public ReportsControllerTests()
     {
         _mockAgentService = new Mock<IAgentService>();
         _mockArchiveService = new Mock<IReportHistoryArchiveService>();
-        _controller = new ReportsController(_mockAgentService.Object, _mockArchiveService.Object);
+        _mockEncryptedArchiveService = new Mock<IEncryptedExportArchiveService>();
+        _controller = new ReportsController(_mockAgentService.Object, _mockArchiveService.Object, _mockEncryptedArchiveService.Object);
     }
 
     [Fact]
@@ -325,6 +327,40 @@ public class ReportsControllerTests
         Assert.IsType<OkObjectResult>(result);
         _mockArchiveService.Verify(x => x.Query(It.Is<ArchivedReportHistoriesQueryRequest>(r =>
             r.BankCode == "0070000" && r.ReportId == "AI330")), Times.Once);
+    }
+
+    [Fact]
+    public async Task ArchiveDeclareResultEncrypted_ReturnsBadRequest_WhenMissingIds()
+    {
+        var result = await _controller.ArchiveDeclareResultEncrypted(new DeclareResultRequest());
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ArchiveReportHistoriesEncrypted_TrimsRequestBeforeCallingService()
+    {
+        _mockEncryptedArchiveService
+            .Setup(x => x.ArchiveReportHistoriesAsync(It.IsAny<ReportHistoriesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EncryptedArchiveRecord
+            {
+                ArchiveId = "id-1",
+                Category = "report-histories",
+                BankCode = "0070000",
+                ReportId = "AI330",
+                DataSha256Hex = "ABC"
+            });
+
+        var result = await _controller.ArchiveReportHistoriesEncrypted(new ReportHistoriesRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            Year = " 113 ",
+            Type = " monthly "
+        });
+
+        Assert.IsType<OkObjectResult>(result);
+        _mockEncryptedArchiveService.Verify(x => x.ArchiveReportHistoriesAsync(It.Is<ReportHistoriesRequest>(r =>
+            r.BankCode == "0070000" && r.ReportId == "AI330" && r.Year == "113" && r.Type == "monthly"), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 
