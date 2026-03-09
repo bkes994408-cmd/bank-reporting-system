@@ -157,3 +157,19 @@ public class UpdateAccountRolesRequest
     public string Username { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
 }
+
+/// <summary>
+/// 第三方系統資料同步請求
+/// </summary>
+public class ThirdPartySyncRequest
+{
+    public string SystemName { get; set; } = string.Empty;
+    public string EventType { get; set; } = "report.declaration";
+    public string BankCode { get; set; } = string.Empty;
+    public string ReportId { get; set; } = string.Empty;
+    public string Period { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? RequestId { get; set; }
+    public string? TransactionId { get; set; }
+    public object? Data { get; set; }
+}
