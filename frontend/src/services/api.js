@@ -61,6 +61,10 @@ export const getReportHistories = (data) => {
   return api.post('/reports/histories', data)
 }
 
+export const getReportCatalog = () => {
+  return api.get('/reports/catalog')
+}
+
 // Keys APIs
 export const importKeys = (data) => {
   return api.post('/keys/import', data)

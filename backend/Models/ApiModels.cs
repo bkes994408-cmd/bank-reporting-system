@@ -22,16 +22,50 @@ public class ApiResponse<T>
 }
 
 /// <summary>
+/// 報表目錄項目
+/// </summary>
+public class ReportCatalogItem
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 報表目錄查詢結果
+/// </summary>
+public class ReportCatalogPayload
+{
+    public List<ReportCatalogItem> Items { get; set; } = new();
+}
+
+/// <summary>
 /// 報表類型
 /// </summary>
 public static class ReportTypes
 {
-    public static readonly string[] All = new[]
+    public static readonly List<ReportCatalogItem> DefaultCatalog = new()
     {
-        "AI302", "AI330", "AI335", "AI341", "AI345", "AI346",
-        "AI370", "AI372", "AI395", "AI397", "AI501", "AI505",
-        "AI515", "AI520", "AI555", "AI560", "AI812", "AI813",
-        "AI814", "AI823", "AI863"
+        new() { Id = "AI302", Name = "資產負債表" },
+        new() { Id = "AI330", Name = "授信擔保品別分析表" },
+        new() { Id = "AI335", Name = "大額授信資料表" },
+        new() { Id = "AI341", Name = "逾期放款統計表" },
+        new() { Id = "AI345", Name = "逾期放款資料表" },
+        new() { Id = "AI346", Name = "逾期放款結構分析表" },
+        new() { Id = "AI370", Name = "聯合授信個案資料表" },
+        new() { Id = "AI372", Name = "聯合授信額度資料表" },
+        new() { Id = "AI395", Name = "不動產放款資料表" },
+        new() { Id = "AI397", Name = "購屋貸款資料表" },
+        new() { Id = "AI501", Name = "存放款利率表" },
+        new() { Id = "AI505", Name = "存款結構分析表" },
+        new() { Id = "AI515", Name = "放款結構分析表" },
+        new() { Id = "AI520", Name = "利率敏感度缺口表" },
+        new() { Id = "AI555", Name = "消費性放款資料表" },
+        new() { Id = "AI560", Name = "信用卡業務資料表" },
+        new() { Id = "AI812", Name = "資本適足率報表" },
+        new() { Id = "AI813", Name = "槓桿比率表" },
+        new() { Id = "AI814", Name = "流動性覆蓋比率表" },
+        new() { Id = "AI823", Name = "淨穩定資金比率表" },
+        new() { Id = "AI863", Name = "資產品質分析表" }
     };
 }
 
