@@ -46,7 +46,7 @@
 
 ## MVP-6：智能合規與生態整合
 
-*   [ ] 自動化法規更新監測與影響分析
+*   [x] 自動化法規更新監測與影響分析
     *   核心功能：開發自動化工具，監測各大監管機構（如金管會、中央銀行）發布的最新法規文件、指引變更。
     *   智能解析：應用自然語言處理 (NLP) 和文本挖掘技術，智能識別法規條文中的關鍵變動、新增要求、影響範圍。
     *   影響評估：自動分析法規變動對現有申報業務流程、數據採集規範、報告格式的潛在影響，並產生影響分析報告。
@@ -85,6 +85,7 @@
 - 完成 MVP-5 項目「合規性審計報告自動化」：新增 `/api/compliance/audit-reports/generate`、`/api/compliance/audit-reports/query`、`/api/compliance/audit-trails/query`，並在 request middleware 自動留存稽核軌跡。
 - 完成 MVP-5 項目「匯出報表與申報結果的加密封存策略」：新增 `/api/reports/secure-archive/report-histories`、`/api/reports/secure-archive/declare-result`、`/api/reports/secure-archive/query`，採用 AES-GCM 封存並以遮罩 metadata 查詢。
 - 完成 MVP-5 項目「對外整合重試/補償機制（含死信佇列）」：第三方同步導入 retry/backoff、補償呼叫（compensation path）、死信佇列查詢與人工重送 API（`/api/integrations/third-party/dead-letters`、`/api/integrations/third-party/dead-letters/{deadLetterId}/retry`）。
+- 完成 MVP-6 項目「自動化法規更新監測與影響分析」：新增法規快照寫入、版本差異比對、規則式影響評估與建議動作，並提供 API（`/api/compliance/regulations/snapshots`、`/api/compliance/regulations/impact-analysis/generate`、`/api/compliance/regulations/impact-analysis/query`）。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

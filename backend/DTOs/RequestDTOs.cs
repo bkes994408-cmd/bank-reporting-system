@@ -231,3 +231,38 @@ public class AuditTrailQueryRequest
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 }
+
+/// <summary>
+/// 法規文件快照寫入請求
+/// </summary>
+public class RegulationSnapshotUpsertRequest
+{
+    public string Source { get; set; } = string.Empty;
+    public string DocumentCode { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime? PublishedAtUtc { get; set; }
+    public string? Url { get; set; }
+}
+
+/// <summary>
+/// 法規影響分析請求
+/// </summary>
+public class RegulationImpactAnalysisRequest
+{
+    public string Source { get; set; } = string.Empty;
+    public string DocumentCode { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 法規影響分析查詢請求
+/// </summary>
+public class RegulationImpactQueryRequest
+{
+    public string? Source { get; set; }
+    public string? DocumentCode { get; set; }
+    public DateTime? FromGeneratedAtUtc { get; set; }
+    public DateTime? ToGeneratedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
