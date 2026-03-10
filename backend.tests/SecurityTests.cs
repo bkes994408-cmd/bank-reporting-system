@@ -43,7 +43,7 @@ public class SecurityTests
         var middlewarePath = Path.Combine(RepoRoot, "backend", "Middleware", "RequestMonitoringMiddleware.cs");
         var content = File.ReadAllText(middlewarePath);
 
-        var requestLogLine = "_logger.LogInformation(\"HTTP {Method} {Route} => {StatusCode} ({DurationMs}ms)\"";
+        var requestLogLine = "_logger.LogInformation(\"HTTP {Method} {Path} => {StatusCode} ({DurationMs}ms)\"";
         Assert.Contains(requestLogLine, content);
 
         var sensitiveFields = new[] { "Authorization", "Token", "KeyA", "KeyB" };

@@ -157,6 +157,10 @@ docker compose down
 | POST | `/api/reports/secure-archive/report-histories` | 加密封存報表歷程匯出資料 |
 | POST | `/api/reports/secure-archive/declare-result` | 加密封存申報結果匯出資料 |
 | POST | `/api/reports/secure-archive/query` | 查詢加密封存紀錄（遮罩 metadata） |
+| GET | `/api/integrations/third-party/systems` | 取得可用第三方整合系統 |
+| POST | `/api/integrations/third-party/sync` | 對外同步（含 retry/backoff） |
+| GET | `/api/integrations/third-party/dead-letters` | 查詢同步死信佇列 |
+| POST | `/api/integrations/third-party/dead-letters/{deadLetterId}/retry` | 手動重送死信佇列項目 |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |

@@ -30,6 +30,18 @@ public class ThirdPartyIntegrationsControllerTests
     }
 
     [Fact]
+    public void GetDeadLetters_ReturnsOk()
+    {
+        var mock = new Mock<IThirdPartyIntegrationService>();
+        mock.Setup(x => x.GetDeadLetters()).Returns(new ThirdPartyDeadLetterPayload());
+        var controller = new ThirdPartyIntegrationsController(mock.Object);
+
+        var result = controller.GetDeadLetters();
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
     public async Task Sync_WhenMissingField_ReturnsBadRequest()
     {
         var mock = new Mock<IThirdPartyIntegrationService>();
@@ -57,6 +69,19 @@ public class ThirdPartyIntegrationsControllerTests
             Period = "2026-03",
             Status = "success"
         });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task RetryDeadLetter_WhenNotFound_ReturnsNotFound()
+    {
+        var mock = new Mock<IThirdPartyIntegrationService>();
+        mock.Setup(x => x.RetryDeadLetterAsync(It.IsAny<string>()))
+            .ReturnsAsync(new ApiResponse<ThirdPartySyncResult> { Code = "4041", Msg = "not found" });
+
+        var controller = new ThirdPartyIntegrationsController(mock.Object);
+        var result = await controller.RetryDeadLetter("missing");
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -91,6 +116,71 @@ public class ThirdPartyIntegrationServiceTests
         Assert.Equal("0000", result.Code);
         Assert.NotNull(captured);
         Assert.Equal("https://accounting.example.com/api/v1/reporting/sync", captured!.RequestUri!.ToString());
+        Assert.Equal(1, result.Payload!.AttemptCount);
+    }
+
+    [Fact]
+    public async Task SyncAsync_WhenRetryAndStillFail_MovesToDeadLetter()
+    {
+        var callCount = 0;
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            callCount++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("temporary failure")
+            });
+        });
+
+        var service = BuildService(handler);
+        var result = await service.SyncAsync(new ThirdPartySyncRequest
+        {
+            SystemName = "accounting",
+            EventType = "report.declaration",
+            BankCode = "0070000",
+            ReportId = "AI330",
+            Period = "2026-03",
+            Status = "success"
+        });
+
+        Assert.Equal("5020", result.Code);
+        Assert.Equal(4, callCount); // 3 retries + 1 compensation call
+        Assert.False(string.IsNullOrWhiteSpace(result.Payload!.DeadLetterId));
+
+        var deadLetters = service.GetDeadLetters();
+        Assert.Single(deadLetters.Items);
+        Assert.Equal(result.Payload.DeadLetterId, deadLetters.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task RetryDeadLetter_WhenSucceed_RemovesFromQueue()
+    {
+        var attempts = 0;
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            attempts++;
+            var code = attempts <= 3 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK;
+            return Task.FromResult(new HttpResponseMessage(code)
+            {
+                Content = new StringContent(code == HttpStatusCode.OK ? "ok" : "busy")
+            });
+        });
+
+        var service = BuildService(handler);
+        var failed = await service.SyncAsync(new ThirdPartySyncRequest
+        {
+            SystemName = "accounting",
+            EventType = "report.declaration",
+            BankCode = "0070000",
+            ReportId = "AI330",
+            Period = "2026-03",
+            Status = "success"
+        });
+
+        var retry = await service.RetryDeadLetterAsync(failed.Payload!.DeadLetterId!);
+
+        Assert.Equal("0000", retry.Code);
+        Assert.Empty(service.GetDeadLetters().Items);
     }
 
     [Fact]
@@ -115,14 +205,17 @@ public class ThirdPartyIntegrationServiceTests
     private static ThirdPartyIntegrationService BuildService(HttpMessageHandler handler)
     {
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(x => x.CreateClient(It.IsAny<string>())).Returns(new HttpClient(handler));
+        factory.Setup(x => x.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler));
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ThirdPartyIntegrations:Systems:0:Name"] = "accounting",
             ["ThirdPartyIntegrations:Systems:0:BaseUrl"] = "https://accounting.example.com",
             ["ThirdPartyIntegrations:Systems:0:SyncPath"] = "/api/v1/reporting/sync",
+            ["ThirdPartyIntegrations:Systems:0:CompensationPath"] = "/api/v1/reporting/compensate",
             ["ThirdPartyIntegrations:Systems:0:Enabled"] = "true",
+            ["ThirdPartyIntegrations:Systems:0:MaxRetries"] = "2",
+            ["ThirdPartyIntegrations:Systems:0:RetryDelayMilliseconds"] = "0",
             ["ThirdPartyIntegrations:Systems:1:Name"] = "erp",
             ["ThirdPartyIntegrations:Systems:1:BaseUrl"] = "https://erp.example.com",
             ["ThirdPartyIntegrations:Systems:1:SyncPath"] = "/api/v1/compliance/reporting",
