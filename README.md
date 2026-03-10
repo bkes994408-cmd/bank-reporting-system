@@ -160,6 +160,7 @@ docker compose down
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |
+| POST | `/api/crypto/jwe/encrypt` | 直接產生 JWE payload（不依賴代理程式） |
 | GET | `/api/check-version` | 檢查版本 |
 | GET | `/api/info` | 查詢代理程式資訊 |
 | POST | `/api/news` | 查詢公告 |
@@ -231,6 +232,20 @@ docker compose down
 - 簽章/JWE（選填）：
   - `useSignature: boolean`，為 `true` 時需提供 `signature`
   - `useJwe: boolean`，為 `true` 時需提供 `jwePayload`
+- 若尚未有 `jwePayload`，可先呼叫 `POST /api/crypto/jwe/encrypt` 以本系統直接加密產生。
+
+### `/api/crypto/jwe/encrypt` 契約（MVP-4）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `payload`: `object`（要加密的 JSON 內容）
+  - `publicKeyPem`: `string`（RSA Public Key, PEM）
+- 選填欄位：
+  - `keyId`: `string`
+- 成功回傳：
+  - `payload.jwePayload`: compact JWE 字串
+  - `payload.alg`: `RSA-OAEP-256`
+  - `payload.enc`: `A256GCM`
 
 ### `/api/declare/result` 契約（MVP）
 
@@ -267,7 +282,7 @@ docker compose down
 
 ## 🔐 安全性說明
 
-- 所有 API 請求需透過代理程式進行 JWE 加密
+- 申報流程可透過代理程式處理 JWE，或使用 `POST /api/crypto/jwe/encrypt` 由本系統直接產生 JWE
 - Token 和金鑰需妥善保管，定期更新
 - 建議使用 HTTPS 進行通訊
 

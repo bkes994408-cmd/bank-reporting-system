@@ -843,3 +843,38 @@ public class AdminControllerTests
         Assert.IsType<ConflictObjectResult>(result);
     }
 }
+
+public class CryptoControllerTests
+{
+    [Fact]
+    public void EncryptJwe_WithValidPayload_ReturnsOk()
+    {
+        var service = new Mock<IJweEncryptionService>();
+        service.Setup(x => x.EncryptToCompactJwe(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string?>()))
+            .Returns("header.key.iv.cipher.tag");
+
+        var controller = new CryptoController(service.Object);
+        var result = controller.EncryptJwe(new JweEncryptRequest
+        {
+            Payload = new { a = 1 },
+            PublicKeyPem = "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----"
+        });
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public void EncryptJwe_WithoutPayload_ReturnsBadRequest()
+    {
+        var service = new Mock<IJweEncryptionService>();
+        var controller = new CryptoController(service.Object);
+
+        var result = controller.EncryptJwe(new JweEncryptRequest
+        {
+            Payload = null,
+            PublicKeyPem = "pem"
+        });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+}
