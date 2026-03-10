@@ -30,6 +30,10 @@ builder.Services.AddHttpClient<IAgentService, AgentService>();
 builder.Services.AddSingleton<IMonitoringService, MonitoringService>();
 builder.Services.AddSingleton<IAdAuthService, AdAuthService>();
 builder.Services.AddSingleton<IAdminService, AdminService>();
+builder.Services.AddSingleton<IThirdPartyIntegrationService, ThirdPartyIntegrationService>();
+builder.Services.AddSingleton<IReportHistoryArchiveService, ReportHistoryArchiveService>();
+builder.Services.AddSingleton<IComplianceAuditService, ComplianceAuditService>();
+builder.Services.AddSingleton<IEncryptedExportArchiveService, EncryptedExportArchiveService>();
 
 var app = builder.Build();
 

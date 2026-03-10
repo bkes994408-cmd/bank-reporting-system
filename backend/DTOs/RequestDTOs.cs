@@ -85,6 +85,20 @@ public class ReportHistoriesRequest
 }
 
 /// <summary>
+/// 歷史資料歸檔查詢請求
+/// </summary>
+public class ArchivedReportHistoriesQueryRequest
+{
+    public string? BankCode { get; set; }
+    public string? ReportId { get; set; }
+    public string? Year { get; set; }
+    public string? Type { get; set; }
+    public string? Status { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
 /// 匯入金鑰請求
 /// </summary>
 public class ImportKeysRequest
@@ -156,4 +170,54 @@ public class UpdateAccountRolesRequest
 {
     public string Username { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
+}
+
+/// <summary>
+/// 第三方系統資料同步請求
+/// </summary>
+public class ThirdPartySyncRequest
+{
+    public string SystemName { get; set; } = string.Empty;
+    public string EventType { get; set; } = "report.declaration";
+    public string BankCode { get; set; } = string.Empty;
+    public string ReportId { get; set; } = string.Empty;
+    public string Period { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? RequestId { get; set; }
+    public string? TransactionId { get; set; }
+    public object? Data { get; set; }
+}
+
+/// <summary>
+/// 生成合規性審計報告請求
+/// </summary>
+public class ComplianceAuditReportGenerateRequest
+{
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+}
+
+/// <summary>
+/// 合規性審計報告查詢請求
+/// </summary>
+public class ComplianceAuditReportQueryRequest
+{
+    public DateTime? FromGeneratedAtUtc { get; set; }
+    public DateTime? ToGeneratedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
+/// 稽核軌跡查詢請求
+/// </summary>
+public class AuditTrailQueryRequest
+{
+    public string? User { get; set; }
+    public string? Path { get; set; }
+    public string? RiskLevel { get; set; }
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
 }

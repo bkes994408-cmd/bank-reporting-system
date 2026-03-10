@@ -138,6 +138,24 @@ public class ReportHistoriesPayload
     public List<ReportHistory> Reports { get; set; } = new();
 }
 
+public class ArchivedReportHistoryRecord
+{
+    public string BankCode { get; set; } = string.Empty;
+    public string ReportId { get; set; } = string.Empty;
+    public string Year { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public ReportHistory Report { get; set; } = new();
+    public DateTime ArchivedAtUtc { get; set; }
+}
+
+public class ArchivedReportHistoriesPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<ArchivedReportHistoryRecord> Reports { get; set; } = new();
+}
+
 /// <summary>
 /// AD 網域登入成功回傳
 /// </summary>
