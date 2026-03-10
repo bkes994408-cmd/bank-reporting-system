@@ -3,6 +3,8 @@
 ## Goal
 在現有 MVP 功能穩定後，規劃下一輪可落地迭代，優先提升可維運性、可觀測性與使用者操作效率。
 
+> 詳細的「使用者回饋 / 市場需求」分析與功能分級，請見 `docs/FEATURE-ITERATION-ANALYSIS.md`。
+
 ## Priority Backlog
 
 ### P0 (本輪先做)
