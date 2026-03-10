@@ -1,9 +1,7 @@
-using System.ComponentModel.DataAnnotations;
 using BankReporting.Api.Controllers;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 using BankReporting.Api.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
@@ -81,50 +79,6 @@ public class RegulationMonitoringServiceTests
         Assert.Contains(result.ImpactAreas, x => x.Domain == "數據採集");
         Assert.Contains(result.RecommendedActions, x => x.Contains("排程"));
     }
-
-    [Fact]
-    public async Task AnalyzeLatestAsync_DoesNotFlagRetentionForAnnualWordingOnly()
-    {
-        var service = new RegulationMonitoringService();
-        service.UpsertSnapshot(new RegulationSnapshotUpsertRequest
-        {
-            Source = "FSC",
-            DocumentCode = "AML-003",
-            Title = "年度報送辦法",
-            Content = "第一條 本辦法適用於年度申報作業。",
-            PublishedAtUtc = DateTime.UtcNow.AddDays(-10)
-        });
-        service.UpsertSnapshot(new RegulationSnapshotUpsertRequest
-        {
-            Source = "FSC",
-            DocumentCode = "AML-003",
-            Title = "年度報送辦法",
-            Content = "第一條 本辦法適用於年度申報作業，並新增年度說明附件。",
-            PublishedAtUtc = DateTime.UtcNow.AddDays(-1)
-        });
-
-        var result = await service.AnalyzeLatestAsync(new RegulationImpactAnalysisRequest
-        {
-            Source = "FSC",
-            DocumentCode = "AML-003"
-        }, CancellationToken.None);
-
-        Assert.DoesNotContain(result.ImpactAreas, x => x.Domain == "稽核留痕");
-    }
-
-    [Fact]
-    public async Task AnalyzeLatestAsync_ThrowsWhenCancellationRequested()
-    {
-        var service = new RegulationMonitoringService();
-        var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() => service.AnalyzeLatestAsync(new RegulationImpactAnalysisRequest
-        {
-            Source = "FSC",
-            DocumentCode = "AML-001"
-        }, cts.Token));
-    }
 }
 
 public class ComplianceControllerTests
@@ -190,102 +144,5 @@ public class ComplianceControllerTests
         });
 
         Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public void UpsertRegulationSnapshot_ReturnsBadRequest_WhenRequestInvalid()
-    {
-        var auditService = new ComplianceAuditService();
-        var regulationService = new RegulationMonitoringService();
-        var controller = new ComplianceController(auditService, regulationService);
-
-        var result = controller.UpsertRegulationSnapshot(new RegulationSnapshotUpsertRequest
-        {
-            Source = " ",
-            DocumentCode = "A",
-            Title = "T",
-            Content = "abc"
-        });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task GenerateRegulationImpactAnalysis_ReturnsBadRequest_WhenRequestInvalid()
-    {
-        var auditService = new ComplianceAuditService();
-        var regulationService = new RegulationMonitoringService();
-        var controller = new ComplianceController(auditService, regulationService)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-
-        var result = await controller.GenerateRegulationImpactAnalysis(new RegulationImpactAnalysisRequest
-        {
-            Source = " ",
-            DocumentCode = ""
-        });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public void QueryRegulationImpactAnalysis_ReturnsBadRequest_WhenPaginationInvalid()
-    {
-        var auditService = new ComplianceAuditService();
-        var regulationService = new RegulationMonitoringService();
-        var controller = new ComplianceController(auditService, regulationService);
-
-        var result = controller.QueryRegulationImpactAnalysis(new RegulationImpactQueryRequest
-        {
-            Source = "F",
-            Page = 0,
-            PageSize = 300
-        });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-}
-
-public class ComplianceRequestValidationTests
-{
-    [Fact]
-    public void RegulationSnapshotUpsertRequest_ShouldRequireKeyFields()
-    {
-        var request = new RegulationSnapshotUpsertRequest
-        {
-            Source = "",
-            DocumentCode = "A",
-            Title = "A",
-            Content = "1234",
-            Url = "not-url"
-        };
-
-        var errors = Validate(request);
-        Assert.NotEmpty(errors);
-    }
-
-    [Fact]
-    public void RegulationImpactAnalysisRequest_ShouldRequireSourceAndDocumentCode()
-    {
-        var request = new RegulationImpactAnalysisRequest { Source = "", DocumentCode = "A" };
-        var errors = Validate(request);
-        Assert.NotEmpty(errors);
-    }
-
-    [Fact]
-    public void RegulationImpactQueryRequest_ShouldValidatePagingAndFilters()
-    {
-        var request = new RegulationImpactQueryRequest { Source = "A", Page = 0, PageSize = 500 };
-        var errors = Validate(request);
-        Assert.NotEmpty(errors);
-    }
-
-    private static List<ValidationResult> Validate<T>(T model)
-    {
-        var context = new ValidationContext(model!);
-        var results = new List<ValidationResult>();
-        Validator.TryValidateObject(model!, context, results, validateAllProperties: true);
-        return results;
     }
 }

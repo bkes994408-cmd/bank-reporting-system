@@ -161,6 +161,9 @@ docker compose down
 | POST | `/api/integrations/third-party/sync` | 對外同步（含 retry/backoff） |
 | GET | `/api/integrations/third-party/dead-letters` | 查詢同步死信佇列 |
 | POST | `/api/integrations/third-party/dead-letters/{deadLetterId}/retry` | 手動重送死信佇列項目 |
+| POST | `/api/compliance/regulations/snapshots` | 寫入法規文件快照（供後續比對） |
+| POST | `/api/compliance/regulations/impact-analysis/generate` | 產生最新法規異動影響分析 |
+| POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |
