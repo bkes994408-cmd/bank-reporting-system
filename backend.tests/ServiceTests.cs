@@ -416,15 +416,12 @@ public class AgentServiceTests
 
     private static AgentService BuildService(HttpMessageHandler handler)
     {
-        var httpClient = new HttpClient(handler);
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["AgentSettings:BaseUrl"] = "https://agent.local/APBSA"
-            })
-            .Build();
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://agent.local/APBSA/")
+        };
 
-        return new AgentService(httpClient, config);
+        return new AgentService(httpClient);
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
