@@ -5,9 +5,13 @@ public class ThirdPartySystemConfig
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string SyncPath { get; set; } = "/api/reporting/sync";
+    public string? CompensationPath { get; set; }
     public string? ApiKey { get; set; }
     public bool Enabled { get; set; }
     public int TimeoutSeconds { get; set; } = 10;
+    public int MaxRetries { get; set; } = 2;
+    public int RetryDelayMilliseconds { get; set; } = 200;
+    public List<int> RetryableStatusCodes { get; set; } = new() { 408, 429, 500, 502, 503, 504 };
 }
 
 public class ThirdPartySyncPayload
@@ -30,9 +34,30 @@ public class ThirdPartySyncResult
     public bool Success { get; set; }
     public int StatusCode { get; set; }
     public string Message { get; set; } = string.Empty;
+    public int AttemptCount { get; set; }
+    public string? DeadLetterId { get; set; }
 }
 
 public class ThirdPartySystemsPayload
 {
     public List<string> Systems { get; set; } = new();
+}
+
+public class ThirdPartyDeadLetterRecord
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public ThirdPartySyncPayload Payload { get; set; } = new();
+    public string ErrorCode { get; set; } = string.Empty;
+    public string ErrorMessage { get; set; } = string.Empty;
+    public int LastStatusCode { get; set; }
+    public int AttemptCount { get; set; }
+    public DateTimeOffset FirstFailedAtUtc { get; set; }
+    public DateTimeOffset LastFailedAtUtc { get; set; }
+    public bool CompensationExecuted { get; set; }
+    public string? CompensationResult { get; set; }
+}
+
+public class ThirdPartyDeadLetterPayload
+{
+    public List<ThirdPartyDeadLetterRecord> Items { get; set; } = new();
 }

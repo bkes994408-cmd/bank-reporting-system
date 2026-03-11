@@ -42,7 +42,38 @@
 - [x] 歷史數據歸檔與查詢優化
 - [x] 合規性審計報告自動化（含稽核軌跡 Audit Trail 與操作留痕查詢）
 - [x] 匯出報表與申報結果的加密封存策略
-- [ ] 對外整合重試/補償機制（含死信佇列）
+- [x] 對外整合重試/補償機制（含死信佇列）
+
+## MVP-6：智能合規與生態整合
+
+*   [x] 自動化法規更新監測與影響分析
+    *   核心功能：開發自動化工具，監測各大監管機構（如金管會、中央銀行）發布的最新法規文件、指引變更。
+    *   智能解析：應用自然語言處理 (NLP) 和文本挖掘技術，智能識別法規條文中的關鍵變動、新增要求、影響範圍。
+    *   影響評估：自動分析法規變動對現有申報業務流程、數據採集規範、報告格式的潛在影響，並產生影響分析報告。
+    *   難點：法規條文的複雜性與多樣性，將非結構化文本轉化為可操作的業務規則。
+
+*   [ ] 與外部合規平台/數據源集成
+    *   監管機構接口對接：開發標準化的 API 接口或數據傳輸模組，實現與監管機構、第三方合規平台（如 KYC/AML 服務提供商）的數據自動交換。
+    *   外部風險數據導入：支持導入外部制裁名單、PEP (政治公眾人物) 名單、不良資產清單等，用於自動化風險比對和審核。
+    *   數據標準化與轉換：開發彈性的數據轉換引擎，將內部數據格式自動匹配外部系統的要求，並處理數據驗證與清洗。
+    *   難點：異構系統的數據對接複雜性，數據安全與隱私保護的合規性。
+
+*   [ ] 預警與異常行為檢測
+    *   機器學習驅動的異常檢測模型：應用監督式或非監督式機器學習模型，分析歷史申報數據、交易記錄、用戶行為，識別潛在的洗錢、詐欺或其他不合規行為模式。
+    *   可配置的預警規則與閥值：提供靈活的配置界面，允許合規人員自定義預警規則、設定風險閾值，並支持多級別（如：低、中、高）的告警通知。
+    *   告警觸發與響應機制：當檢測到異常行為時，自動觸發告警通知（郵件、簡訊、應用內通知），並引導合規人員進行調查，生成詳細的異常報告。
+    *   難點：高精度異常檢測模型的訓練與調優，降低誤報率，確保模型可解釋性。
+
+*   [ ] 區塊鏈技術應用探索 (可選)
+    *   關鍵審計軌跡上鏈：探索將關鍵的審計軌跡、申報證明、法規符合性聲明等核心數據以加密形式上傳至區塊鏈，利用其不可篡改性與時間戳特性，增強數據的公信力與可追溯性。
+    *   基於區塊鏈的數據共享方案：研究如何在保護隱私的前提下，利用區塊鏈技術實現銀行間或監管機構與銀行之間的安全、高效數據共享。
+    *   難點：區塊鏈技術在金融領域的合規性與監管接受度，性能與擴展性問題。
+
+*   [ ] 用戶行為分析與稽核追溯優化
+    *   增強用戶操作日誌詳盡度：細化記錄系統中所有用戶的操作行為，包括登錄、數據查詢、數據修改、報告生成等，提供更豐富的稽核數據。
+    *   可視化稽核追溯路徑：開發直觀的圖形化界面，允許合規人員快速追溯任何數據變動或報告生成的完整鏈路，快速定位問題源頭和責任人。
+    *   行為分析與審計效率優化：引入行為分析工具，識別合規流程中的瓶頸或重複性操作，提供優化建議，提升稽核效率與準確性。
+    *   難點：海量日誌數據的高效儲存與查詢，數據隱私與合規性之間的平衡。
 
 ## 本輪（Sprint）完成摘要
 - 完成 `docs/DEPLOYMENT.md`：Windows Server + Docker Desktop 部署流程（環境準備、Compose 配置、啟動與驗證、故障排查）。
@@ -53,6 +84,8 @@
 - 完成 MVP-5 項目「歷史數據歸檔與查詢優化」：新增 `/api/reports/histories/archive` 與 `/api/reports/histories/archive/query`，支援歸檔封存、條件查詢與分頁。
 - 完成 MVP-5 項目「合規性審計報告自動化」：新增 `/api/compliance/audit-reports/generate`、`/api/compliance/audit-reports/query`、`/api/compliance/audit-trails/query`，並在 request middleware 自動留存稽核軌跡。
 - 完成 MVP-5 項目「匯出報表與申報結果的加密封存策略」：新增 `/api/reports/secure-archive/report-histories`、`/api/reports/secure-archive/declare-result`、`/api/reports/secure-archive/query`，採用 AES-GCM 封存並以遮罩 metadata 查詢。
+- 完成 MVP-5 項目「對外整合重試/補償機制（含死信佇列）」：第三方同步導入 retry/backoff、補償呼叫（compensation path）、死信佇列查詢與人工重送 API（`/api/integrations/third-party/dead-letters`、`/api/integrations/third-party/dead-letters/{deadLetterId}/retry`）。
+- 完成 MVP-6 項目「自動化法規更新監測與影響分析」：新增法規快照寫入、版本差異比對、規則式影響評估與建議動作，並提供 API（`/api/compliance/regulations/snapshots`、`/api/compliance/regulations/impact-analysis/generate`、`/api/compliance/regulations/impact-analysis/query`）。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

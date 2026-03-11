@@ -48,3 +48,53 @@ public class AuditTrailQueryPayload
     public int PageSize { get; set; }
     public List<AuditTrailRecord> Records { get; set; } = new();
 }
+
+public class RegulationDocumentSnapshot
+{
+    public string SnapshotId { get; set; } = Guid.NewGuid().ToString("N");
+    public string Source { get; set; } = string.Empty;
+    public string DocumentCode { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime PublishedAtUtc { get; set; }
+    public DateTime CapturedAtUtc { get; set; }
+    public string? Url { get; set; }
+    public List<string> Clauses { get; set; } = new();
+}
+
+public class RegulationChangeItem
+{
+    public string ChangeType { get; set; } = "updated"; // added|removed|updated
+    public string ClauseKey { get; set; } = string.Empty;
+    public string? PreviousText { get; set; }
+    public string? CurrentText { get; set; }
+}
+
+public class RegulationImpactArea
+{
+    public string Domain { get; set; } = string.Empty;
+    public string Severity { get; set; } = "low"; // low|medium|high
+    public string Reason { get; set; } = string.Empty;
+}
+
+public class RegulationImpactAnalysisRecord
+{
+    public string AnalysisId { get; set; } = Guid.NewGuid().ToString("N");
+    public DateTime GeneratedAtUtc { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string DocumentCode { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime BaselinePublishedAtUtc { get; set; }
+    public DateTime CurrentPublishedAtUtc { get; set; }
+    public List<RegulationChangeItem> Changes { get; set; } = new();
+    public List<RegulationImpactArea> ImpactAreas { get; set; } = new();
+    public List<string> RecommendedActions { get; set; } = new();
+}
+
+public class RegulationImpactQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<RegulationImpactAnalysisRecord> Records { get; set; } = new();
+}

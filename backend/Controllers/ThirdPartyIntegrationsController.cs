@@ -30,6 +30,34 @@ public class ThirdPartyIntegrationsController : ControllerBase
         });
     }
 
+    [HttpGet("dead-letters")]
+    public IActionResult GetDeadLetters()
+    {
+        return Ok(new ApiResponse<ThirdPartyDeadLetterPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = _service.GetDeadLetters()
+        });
+    }
+
+    [HttpPost("dead-letters/{deadLetterId}/retry")]
+    public async Task<IActionResult> RetryDeadLetter([FromRoute] string deadLetterId)
+    {
+        if (string.IsNullOrWhiteSpace(deadLetterId))
+        {
+            return BadRequest(new { code = "4000", msg = "deadLetterId 不可為空" });
+        }
+
+        var result = await _service.RetryDeadLetterAsync(deadLetterId.Trim());
+        if (result.Code == "4041")
+        {
+            return NotFound(result);
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("sync")]
     public async Task<IActionResult> Sync([FromBody] ThirdPartySyncRequest request)
     {

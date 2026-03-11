@@ -157,6 +157,13 @@ docker compose down
 | POST | `/api/reports/secure-archive/report-histories` | 加密封存報表歷程匯出資料 |
 | POST | `/api/reports/secure-archive/declare-result` | 加密封存申報結果匯出資料 |
 | POST | `/api/reports/secure-archive/query` | 查詢加密封存紀錄（遮罩 metadata） |
+| GET | `/api/integrations/third-party/systems` | 取得可用第三方整合系統 |
+| POST | `/api/integrations/third-party/sync` | 對外同步（含 retry/backoff） |
+| GET | `/api/integrations/third-party/dead-letters` | 查詢同步死信佇列 |
+| POST | `/api/integrations/third-party/dead-letters/{deadLetterId}/retry` | 手動重送死信佇列項目 |
+| POST | `/api/compliance/regulations/snapshots` | 寫入法規文件快照（供後續比對） |
+| POST | `/api/compliance/regulations/impact-analysis/generate` | 產生最新法規異動影響分析 |
+| POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |
@@ -169,6 +176,56 @@ docker compose down
 | POST | `/api/settings` | 更新系統設定 |
 | GET | `/health` | 健康檢查（服務存活與版本） |
 | GET | `/metrics` | Prometheus 格式監控指標 |
+
+### 法規監控最小可執行範例（snapshot -> generate -> query）
+
+1) 寫入舊版快照
+
+```bash
+curl -X POST http://localhost:5000/api/compliance/regulations/snapshots \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source":"FSC",
+    "documentCode":"AML-001",
+    "title":"防制洗錢辦法",
+    "content":"第一條 申報期限為次月10日。"
+  }'
+```
+
+2) 寫入新版快照
+
+```bash
+curl -X POST http://localhost:5000/api/compliance/regulations/snapshots \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source":"FSC",
+    "documentCode":"AML-001",
+    "title":"防制洗錢辦法",
+    "content":"第一條 申報期限為次月5日。第二條 資料留存期限至少五年。"
+  }'
+```
+
+3) 生成 impact analysis
+
+```bash
+curl -X POST http://localhost:5000/api/compliance/regulations/impact-analysis/generate \
+  -H "Content-Type: application/json" \
+  -d '{"source":"FSC","documentCode":"AML-001"}'
+```
+
+4) 查詢 impact analysis
+
+```bash
+curl -X POST http://localhost:5000/api/compliance/regulations/impact-analysis/query \
+  -H "Content-Type: application/json" \
+  -d '{"source":"FSC","documentCode":"AML-001","page":1,"pageSize":20}'
+```
+
+### 法規監控 MVP 限制
+
+- 目前快照與 impact analysis 皆存於 in-memory queue，服務重啟後資料會遺失。
+- 法規來源尚未串接自動抓取（目前需由 API 主動寫入 snapshot）。
+- impact analysis 為關鍵字規則基礎，仍建議搭配人工覆核。
 
 ## 📈 監控與告警（MVP 最小集合）
 

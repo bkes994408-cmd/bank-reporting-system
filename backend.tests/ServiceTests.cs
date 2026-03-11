@@ -422,7 +422,11 @@ public class AgentServiceTests
             BaseAddress = new Uri("https://agent.local/APBSA/")
         };
 
-        return new AgentService(httpClient);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AgentSettings:BaseUrl"] = "https://agent.local/APBSA"
+        }).Build();
+        return new AgentService(httpClient, config);
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
