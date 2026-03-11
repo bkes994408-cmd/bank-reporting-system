@@ -153,3 +153,57 @@ public class ExternalRiskScreeningResult
     public string SuggestedDecision { get; set; } = "clear";
     public List<ExternalRiskMatchItem> Matches { get; set; } = new();
 }
+
+public class ComplianceAlertRule
+{
+    public string RuleId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string RuleType { get; set; } = "failed_requests";
+    public bool Enabled { get; set; } = true;
+    public string Severity { get; set; } = "medium";
+    public int Threshold { get; set; } = 1;
+    public int WindowMinutes { get; set; } = 15;
+    public string? RiskLevel { get; set; }
+    public bool SensitiveOnly { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
+public class ComplianceAlertRulesPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<ComplianceAlertRule> Rules { get; set; } = new();
+}
+
+public class ComplianceAlertRecord
+{
+    public string AlertId { get; set; } = string.Empty;
+    public string RuleId { get; set; } = string.Empty;
+    public string RuleName { get; set; } = string.Empty;
+    public string Severity { get; set; } = "medium";
+    public int SeverityScore { get; set; }
+    public DateTime TriggeredAtUtc { get; set; }
+    public int WindowMinutes { get; set; }
+    public int TriggerCount { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string SuggestedAction { get; set; } = string.Empty;
+    public List<string> TriggerDetails { get; set; } = new();
+    public List<string> NotifyChannels { get; set; } = new();
+}
+
+public class ComplianceAlertEvaluateResult
+{
+    public DateTime EvaluatedAtUtc { get; set; }
+    public int EvaluatedRules { get; set; }
+    public int TriggeredAlerts { get; set; }
+    public List<ComplianceAlertRecord> Alerts { get; set; } = new();
+}
+
+public class ComplianceAlertQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<ComplianceAlertRecord> Alerts { get; set; } = new();
+}

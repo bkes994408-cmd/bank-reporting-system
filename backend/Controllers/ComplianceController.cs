@@ -12,15 +12,18 @@ public class ComplianceController : ControllerBase
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly IRegulationMonitoringService _regulationMonitoringService;
     private readonly IExternalComplianceDataService _externalComplianceDataService;
+    private readonly IComplianceAlertService _complianceAlertService;
 
     public ComplianceController(
         IComplianceAuditService complianceAuditService,
         IRegulationMonitoringService regulationMonitoringService,
-        IExternalComplianceDataService externalComplianceDataService)
+        IExternalComplianceDataService externalComplianceDataService,
+        IComplianceAlertService complianceAlertService)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
         _externalComplianceDataService = externalComplianceDataService;
+        _complianceAlertService = complianceAlertService;
     }
 
     [HttpPost("audit-reports/generate")]
@@ -213,6 +216,91 @@ public class ComplianceController : ControllerBase
         {
             Code = "0000",
             Msg = "風險比對完成",
+            Payload = result
+        });
+    }
+
+    [HttpPost("alerts/rules/upsert")]
+    public IActionResult UpsertAlertRule([FromBody] ComplianceAlertRuleUpsertRequest request)
+    {
+        var sanitized = new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = request.RuleId?.Trim(),
+            Name = request.Name?.Trim() ?? string.Empty,
+            RuleType = request.RuleType?.Trim() ?? "failed_requests",
+            Enabled = request.Enabled,
+            Severity = request.Severity?.Trim() ?? "medium",
+            Threshold = request.Threshold,
+            WindowMinutes = request.WindowMinutes,
+            RiskLevel = request.RiskLevel?.Trim(),
+            SensitiveOnly = request.SensitiveOnly
+        };
+
+        var rule = _complianceAlertService.UpsertRule(sanitized);
+        return Ok(new ApiResponse<ComplianceAlertRule>
+        {
+            Code = "0000",
+            Msg = "告警規則已更新",
+            Payload = rule
+        });
+    }
+
+    [HttpPost("alerts/rules/query")]
+    public IActionResult QueryAlertRules([FromBody] ComplianceAlertRulesQueryRequest request)
+    {
+        var sanitized = new ComplianceAlertRulesQueryRequest
+        {
+            Enabled = request.Enabled,
+            RuleType = request.RuleType?.Trim(),
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _complianceAlertService.QueryRules(sanitized);
+        return Ok(new ApiResponse<ComplianceAlertRulesPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("alerts/evaluate")]
+    public IActionResult EvaluateAlerts([FromBody] ComplianceAlertEvaluateRequest request)
+    {
+        var sanitized = new ComplianceAlertEvaluateRequest
+        {
+            WindowMinutes = request.WindowMinutes,
+            NotifyChannels = request.NotifyChannels
+        };
+
+        var result = _complianceAlertService.Evaluate(sanitized);
+        return Ok(new ApiResponse<ComplianceAlertEvaluateResult>
+        {
+            Code = "0000",
+            Msg = "告警評估完成",
+            Payload = result
+        });
+    }
+
+    [HttpPost("alerts/query")]
+    public IActionResult QueryAlerts([FromBody] ComplianceAlertQueryRequest request)
+    {
+        var sanitized = new ComplianceAlertQueryRequest
+        {
+            RuleId = request.RuleId?.Trim(),
+            Severity = request.Severity?.Trim(),
+            FromTriggeredAtUtc = request.FromTriggeredAtUtc,
+            ToTriggeredAtUtc = request.ToTriggeredAtUtc,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _complianceAlertService.QueryAlerts(sanitized);
+        return Ok(new ApiResponse<ComplianceAlertQueryPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
             Payload = result
         });
     }
