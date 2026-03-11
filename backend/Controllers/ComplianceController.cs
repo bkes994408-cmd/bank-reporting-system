@@ -271,7 +271,6 @@ public class ComplianceController : ControllerBase
         var sanitized = new ComplianceAlertEvaluateRequest
         {
             WindowMinutes = request.WindowMinutes,
-            TopSubjects = request.TopSubjects,
             NotifyChannels = request.NotifyChannels
         };
 
