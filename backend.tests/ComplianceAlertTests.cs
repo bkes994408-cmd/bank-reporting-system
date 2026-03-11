@@ -147,6 +147,123 @@ public class ComplianceAlertServiceTests
         Assert.Contains(second.Alerts, x => x.RuleId == "sensitive-only-failed");
     }
 
+
+    [Fact]
+    public void Evaluate_AppliesSensitiveOnly_ForHighRiskOperations()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-only-high-risk",
+            Name = "Sensitive only high risk",
+            RuleType = "high_risk_operations",
+            Enabled = true,
+            Threshold = 2,
+            WindowMinutes = 10,
+            RiskLevel = "high",
+            SensitiveOnly = true
+        });
+
+        // 同為 high risk，但僅 1 筆敏感操作，應不觸發
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "dora",
+            Method = "POST",
+            Path = "/api/keys/import",
+            StatusCode = 200,
+            IsSensitiveOperation = false,
+            RiskLevel = "high"
+        });
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "dora",
+            Method = "POST",
+            Path = "/api/keys/import",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var first = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.DoesNotContain(first.Alerts, x => x.RuleId == "sensitive-only-high-risk");
+
+        // 第二筆敏感操作加入後才應觸發
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "dora",
+            Method = "POST",
+            Path = "/api/keys/import",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var second = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.Contains(second.Alerts, x => x.RuleId == "sensitive-only-high-risk");
+    }
+
+    [Fact]
+    public void Evaluate_AppliesSensitiveOnly_ForOffHoursSensitive()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-only-off-hours",
+            Name = "Sensitive only off-hours",
+            RuleType = "off_hours_sensitive",
+            Enabled = true,
+            Threshold = 2,
+            WindowMinutes = 120,
+            SensitiveOnly = true
+        });
+
+        var offHoursUtc = DateTime.UtcNow.Date.AddHours(2);
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = offHoursUtc,
+            User = "eric",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = false,
+            RiskLevel = "medium"
+        });
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = offHoursUtc.AddMinutes(-1),
+            User = "eric",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+
+        var first = service.Evaluate(new ComplianceAlertEvaluateRequest { WindowMinutes = 1440 });
+        Assert.DoesNotContain(first.Alerts, x => x.RuleId == "sensitive-only-off-hours");
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = offHoursUtc.AddMinutes(-2),
+            User = "eric",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+
+        var second = service.Evaluate(new ComplianceAlertEvaluateRequest { WindowMinutes = 1440 });
+        Assert.Contains(second.Alerts, x => x.RuleId == "sensitive-only-off-hours");
+    }
+
     [Fact]
     public void Evaluate_ReturnsTopSubjects_WhenMultipleUsersTriggered()
     {
@@ -196,6 +313,53 @@ public class ComplianceAlertServiceTests
         var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
         var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "paging-rule"));
         Assert.Equal(650, alert.TriggerCount);
+    }
+
+
+    [Fact]
+    public void Evaluate_PagingBoundary_Exactly500Records_StillTriggers()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "paging-500",
+            Name = "Paging 500",
+            RuleType = "failed_requests",
+            Enabled = true,
+            Threshold = 500,
+            WindowMinutes = 30
+        });
+
+        AddFailed(auditService, "frank", 500);
+
+        var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "paging-500"));
+        Assert.Equal(500, alert.TriggerCount);
+    }
+
+    [Fact]
+    public void Evaluate_PagingBoundary_Exactly1000Records_AggregatesTwoFullPages()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "paging-1000",
+            Name = "Paging 1000",
+            RuleType = "failed_requests",
+            Enabled = true,
+            Threshold = 1000,
+            WindowMinutes = 30
+        });
+
+        AddFailed(auditService, "gina", 1000);
+
+        var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "paging-1000"));
+        Assert.Equal(1000, alert.TriggerCount);
     }
 
     private static void AddFailed(ComplianceAuditService auditService, string user, int count)
