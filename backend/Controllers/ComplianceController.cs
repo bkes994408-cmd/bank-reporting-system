@@ -11,11 +11,16 @@ public class ComplianceController : ControllerBase
 {
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly IRegulationMonitoringService _regulationMonitoringService;
+    private readonly IExternalComplianceDataService _externalComplianceDataService;
 
-    public ComplianceController(IComplianceAuditService complianceAuditService, IRegulationMonitoringService regulationMonitoringService)
+    public ComplianceController(
+        IComplianceAuditService complianceAuditService,
+        IRegulationMonitoringService regulationMonitoringService,
+        IExternalComplianceDataService externalComplianceDataService)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
+        _externalComplianceDataService = externalComplianceDataService;
     }
 
     [HttpPost("audit-reports/generate")]
@@ -148,6 +153,66 @@ public class ComplianceController : ControllerBase
         {
             Code = "0000",
             Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("external-data/sync")]
+    public async Task<IActionResult> SyncExternalRiskData([FromBody] ExternalRiskDataSyncRequest request)
+    {
+        var sanitized = new ExternalRiskDataSyncRequest
+        {
+            ProviderName = request.ProviderName?.Trim() ?? string.Empty,
+            DatasetType = request.DatasetType?.Trim() ?? "sanctions",
+            PathOverride = request.PathOverride?.Trim(),
+            FieldMappings = request.FieldMappings
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.ProviderName))
+        {
+            return BadRequest(new ApiResponse<object> { Code = "COMPLIANCE_4002", Msg = "providerName 為必填" });
+        }
+
+        try
+        {
+            var result = await _externalComplianceDataService.SyncRiskDataAsync(sanitized, CancellationToken.None);
+            return Ok(new ApiResponse<ExternalRiskDataSyncResult>
+            {
+                Code = "0000",
+                Msg = "外部風險數據同步成功",
+                Payload = result
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4003",
+                Msg = ex.Message
+            });
+        }
+    }
+
+    [HttpPost("external-data/screen")]
+    public IActionResult ScreenExternalRisk([FromBody] ExternalRiskScreeningRequest request)
+    {
+        var sanitized = new ExternalRiskScreeningRequest
+        {
+            CustomerName = request.CustomerName?.Trim() ?? string.Empty,
+            Country = request.Country?.Trim(),
+            DatasetType = request.DatasetType?.Trim()
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.CustomerName))
+        {
+            return BadRequest(new ApiResponse<object> { Code = "COMPLIANCE_4004", Msg = "customerName 為必填" });
+        }
+
+        var result = _externalComplianceDataService.ScreenRisk(sanitized);
+        return Ok(new ApiResponse<ExternalRiskScreeningResult>
+        {
+            Code = "0000",
+            Msg = "風險比對完成",
             Payload = result
         });
     }

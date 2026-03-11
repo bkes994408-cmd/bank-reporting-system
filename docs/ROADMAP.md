@@ -52,7 +52,7 @@
     *   影響評估：自動分析法規變動對現有申報業務流程、數據採集規範、報告格式的潛在影響，並產生影響分析報告。
     *   難點：法規條文的複雜性與多樣性，將非結構化文本轉化為可操作的業務規則。
 
-*   [ ] 與外部合規平台/數據源集成
+*   [x] 與外部合規平台/數據源集成
     *   監管機構接口對接：開發標準化的 API 接口或數據傳輸模組，實現與監管機構、第三方合規平台（如 KYC/AML 服務提供商）的數據自動交換。
     *   外部風險數據導入：支持導入外部制裁名單、PEP (政治公眾人物) 名單、不良資產清單等，用於自動化風險比對和審核。
     *   數據標準化與轉換：開發彈性的數據轉換引擎，將內部數據格式自動匹配外部系統的要求，並處理數據驗證與清洗。
@@ -86,6 +86,7 @@
 - 完成 MVP-5 項目「匯出報表與申報結果的加密封存策略」：新增 `/api/reports/secure-archive/report-histories`、`/api/reports/secure-archive/declare-result`、`/api/reports/secure-archive/query`，採用 AES-GCM 封存並以遮罩 metadata 查詢。
 - 完成 MVP-5 項目「對外整合重試/補償機制（含死信佇列）」：第三方同步導入 retry/backoff、補償呼叫（compensation path）、死信佇列查詢與人工重送 API（`/api/integrations/third-party/dead-letters`、`/api/integrations/third-party/dead-letters/{deadLetterId}/retry`）。
 - 完成 MVP-6 項目「自動化法規更新監測與影響分析」：新增法規快照寫入、版本差異比對、規則式影響評估與建議動作，並提供 API（`/api/compliance/regulations/snapshots`、`/api/compliance/regulations/impact-analysis/generate`、`/api/compliance/regulations/impact-analysis/query`）。
+- 完成 MVP-6 項目「與外部合規平台/數據源集成」：新增外部合規數據源同步與風險名單比對能力，支援欄位映射標準化與風險決策建議 API（`/api/compliance/external-data/sync`、`/api/compliance/external-data/screen`）。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

@@ -266,3 +266,24 @@ public class RegulationImpactQueryRequest
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }
+
+/// <summary>
+/// 外部合規風險數據同步請求
+/// </summary>
+public class ExternalRiskDataSyncRequest
+{
+    public string ProviderName { get; set; } = string.Empty;
+    public string DatasetType { get; set; } = "sanctions";
+    public string? PathOverride { get; set; }
+    public Dictionary<string, string>? FieldMappings { get; set; }
+}
+
+/// <summary>
+/// 外部合規風險比對請求
+/// </summary>
+public class ExternalRiskScreeningRequest
+{
+    public string CustomerName { get; set; } = string.Empty;
+    public string? Country { get; set; }
+    public string? DatasetType { get; set; }
+}

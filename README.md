@@ -164,6 +164,8 @@ docker compose down
 | POST | `/api/compliance/regulations/snapshots` | 寫入法規文件快照（供後續比對） |
 | POST | `/api/compliance/regulations/impact-analysis/generate` | 產生最新法規異動影響分析 |
 | POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
+| POST | `/api/compliance/external-data/sync` | 同步外部合規平台風險數據（制裁/PEP 等） |
+| POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |

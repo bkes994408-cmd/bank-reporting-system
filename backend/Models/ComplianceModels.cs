@@ -98,3 +98,58 @@ public class RegulationImpactQueryPayload
     public int PageSize { get; set; }
     public List<RegulationImpactAnalysisRecord> Records { get; set; } = new();
 }
+
+public class ExternalComplianceProviderConfig
+{
+    public string Name { get; set; } = string.Empty;
+    public string BaseUrl { get; set; } = string.Empty;
+    public string FetchPath { get; set; } = "/api/v1/risk-list";
+    public string? ApiKey { get; set; }
+    public bool Enabled { get; set; }
+    public int TimeoutSeconds { get; set; } = 15;
+}
+
+public class ExternalRiskRecord
+{
+    public string RecordId { get; set; } = Guid.NewGuid().ToString("N");
+    public string ProviderName { get; set; } = string.Empty;
+    public string DatasetType { get; set; } = "sanctions";
+    public string ExternalId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Country { get; set; }
+    public string RiskLevel { get; set; } = "medium";
+    public List<string> Tags { get; set; } = new();
+    public DateTime ImportedAtUtc { get; set; }
+    public DateTime? SourceUpdatedAtUtc { get; set; }
+    public Dictionary<string, string> Raw { get; set; } = new();
+}
+
+public class ExternalRiskDataSyncResult
+{
+    public string ProviderName { get; set; } = string.Empty;
+    public string DatasetType { get; set; } = string.Empty;
+    public int ImportedCount { get; set; }
+    public int SkippedCount { get; set; }
+    public DateTime SyncedAtUtc { get; set; }
+}
+
+public class ExternalRiskMatchItem
+{
+    public string RecordId { get; set; } = string.Empty;
+    public string ProviderName { get; set; } = string.Empty;
+    public string DatasetType { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Country { get; set; }
+    public string RiskLevel { get; set; } = "medium";
+    public double Score { get; set; }
+    public List<string> Tags { get; set; } = new();
+}
+
+public class ExternalRiskScreeningResult
+{
+    public string CustomerName { get; set; } = string.Empty;
+    public string? Country { get; set; }
+    public int TotalMatches { get; set; }
+    public string SuggestedDecision { get; set; } = "clear";
+    public List<ExternalRiskMatchItem> Matches { get; set; } = new();
+}
