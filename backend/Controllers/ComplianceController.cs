@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 using BankReporting.Api.Services;
@@ -87,10 +88,19 @@ public class ComplianceController : ControllerBase
             Source = request.Source?.Trim() ?? string.Empty,
             DocumentCode = request.DocumentCode?.Trim() ?? string.Empty,
             Title = request.Title?.Trim() ?? string.Empty,
-            Content = request.Content ?? string.Empty,
+            Content = request.Content?.Trim() ?? string.Empty,
             PublishedAtUtc = request.PublishedAtUtc,
             Url = request.Url?.Trim()
         };
+
+        if (!TryValidateRequest(sanitized, out var errors))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4000",
+                Msg = string.Join("；", errors)
+            });
+        }
 
         var snapshot = _regulationMonitoringService.UpsertSnapshot(sanitized);
         return Ok(new ApiResponse<RegulationDocumentSnapshot>
@@ -110,9 +120,18 @@ public class ComplianceController : ControllerBase
             DocumentCode = request.DocumentCode?.Trim() ?? string.Empty
         };
 
+        if (!TryValidateRequest(sanitized, out var errors))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4000",
+                Msg = string.Join("；", errors)
+            });
+        }
+
         try
         {
-            var report = await _regulationMonitoringService.AnalyzeLatestAsync(sanitized, CancellationToken.None);
+            var report = await _regulationMonitoringService.AnalyzeLatestAsync(sanitized, HttpContext?.RequestAborted ?? CancellationToken.None);
             return Ok(new ApiResponse<RegulationImpactAnalysisRecord>
             {
                 Code = "0000",
@@ -126,6 +145,14 @@ public class ComplianceController : ControllerBase
             {
                 Code = "COMPLIANCE_4001",
                 Msg = ex.Message
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(StatusCodes.Status408RequestTimeout, new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4008",
+                Msg = "請求已取消或逾時"
             });
         }
     }
@@ -143,6 +170,15 @@ public class ComplianceController : ControllerBase
             PageSize = request.PageSize
         };
 
+        if (!TryValidateRequest(sanitized, out var errors))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4000",
+                Msg = string.Join("；", errors)
+            });
+        }
+
         var result = _regulationMonitoringService.QueryImpactReports(sanitized);
         return Ok(new ApiResponse<RegulationImpactQueryPayload>
         {
@@ -150,5 +186,21 @@ public class ComplianceController : ControllerBase
             Msg = "查詢成功",
             Payload = result
         });
+    }
+
+    private static bool TryValidateRequest<T>(T request, out List<string> errors)
+    {
+        var context = new ValidationContext(request!);
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(request!, context, validationResults, validateAllProperties: true);
+
+        errors = validationResults
+            .Select(x => x.ErrorMessage)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Cast<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return isValid;
     }
 }

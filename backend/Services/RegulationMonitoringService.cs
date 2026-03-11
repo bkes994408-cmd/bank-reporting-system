@@ -47,6 +47,8 @@ public class RegulationMonitoringService : IRegulationMonitoringService
 
     public Task<RegulationImpactAnalysisRecord> AnalyzeLatestAsync(RegulationImpactAnalysisRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var source = request.Source.Trim();
         var documentCode = request.DocumentCode.Trim();
 
@@ -65,7 +67,10 @@ public class RegulationMonitoringService : IRegulationMonitoringService
         var current = pair[0];
         var baseline = pair[1];
 
+        cancellationToken.ThrowIfCancellationRequested();
         var changes = CompareClauses(baseline.Clauses, current.Clauses);
+
+        cancellationToken.ThrowIfCancellationRequested();
         var impactAreas = AnalyzeImpact(changes);
 
         var report = new RegulationImpactAnalysisRecord
@@ -82,6 +87,7 @@ public class RegulationMonitoringService : IRegulationMonitoringService
             RecommendedActions = BuildRecommendations(impactAreas)
         };
 
+        cancellationToken.ThrowIfCancellationRequested();
         _impactReports.Enqueue(report);
         while (_impactReports.Count > 2000 && _impactReports.TryDequeue(out _))
         {
@@ -230,7 +236,7 @@ public class RegulationMonitoringService : IRegulationMonitoringService
                 UpsertImpact(impacts, "數據採集", "high", "資料蒐集範圍或驗證規則可能需擴充");
             }
 
-            if (ContainsAny(text, "保存", "留存", "年", "稽核", "軌跡"))
+            if (ContainsAny(text, "保存", "留存", "稽核", "軌跡") || ContainsRetentionPeriodKeyword(text))
             {
                 UpsertImpact(impacts, "稽核留痕", "medium", "稽核留痕與保存期間可能需調整");
             }
@@ -279,6 +285,18 @@ public class RegulationMonitoringService : IRegulationMonitoringService
 
     private static bool ContainsAny(string text, params string[] keywords)
         => keywords.Any(k => text.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+    private static bool ContainsRetentionPeriodKeyword(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(text, @"(?:至少|不得少於|保存|留存)?\s*(?:\d+|[一二三四五六七八九十百]+)\s*年(?:以上|內|期限)?", RegexOptions.IgnoreCase)
+               || text.Contains("保存期限", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("留存期限", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static void UpsertImpact(Dictionary<string, RegulationImpactArea> impacts, string domain, string severity, string reason)
     {

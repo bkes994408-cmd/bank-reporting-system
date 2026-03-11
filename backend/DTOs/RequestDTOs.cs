@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BankReporting.Api.DTOs;
 
 /// <summary>
@@ -237,11 +239,25 @@ public class AuditTrailQueryRequest
 /// </summary>
 public class RegulationSnapshotUpsertRequest
 {
+    [Required]
+    [MinLength(2)]
     public string Source { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(2)]
     public string DocumentCode { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(2)]
     public string Title { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(5)]
     public string Content { get; set; } = string.Empty;
+
     public DateTime? PublishedAtUtc { get; set; }
+
+    [Url]
     public string? Url { get; set; }
 }
 
@@ -250,7 +266,12 @@ public class RegulationSnapshotUpsertRequest
 /// </summary>
 public class RegulationImpactAnalysisRequest
 {
+    [Required]
+    [MinLength(2)]
     public string Source { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(2)]
     public string DocumentCode { get; set; } = string.Empty;
 }
 
@@ -259,10 +280,18 @@ public class RegulationImpactAnalysisRequest
 /// </summary>
 public class RegulationImpactQueryRequest
 {
+    [MinLength(2)]
     public string? Source { get; set; }
+
+    [MinLength(2)]
     public string? DocumentCode { get; set; }
+
     public DateTime? FromGeneratedAtUtc { get; set; }
     public DateTime? ToGeneratedAtUtc { get; set; }
+
+    [Range(1, 100000)]
     public int Page { get; set; } = 1;
+
+    [Range(1, 200)]
     public int PageSize { get; set; } = 20;
 }
