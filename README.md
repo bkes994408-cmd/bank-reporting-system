@@ -266,6 +266,187 @@ docker compose down
 }
 ```
 
+### Alerts API（MVP-6）範例
+
+#### 1) `POST /api/compliance/alerts/rules/upsert`
+
+請求：
+
+```json
+{
+  "ruleId": "failed-sensitive-burst",
+  "name": "敏感失敗請求異常",
+  "ruleType": "failed_requests",
+  "enabled": true,
+  "severity": "high",
+  "threshold": 5,
+  "windowMinutes": 15,
+  "sensitiveOnly": true
+}
+```
+
+回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "告警規則已更新",
+  "payload": {
+    "ruleId": "failed-sensitive-burst",
+    "name": "敏感失敗請求異常",
+    "ruleType": "failed_requests",
+    "enabled": true,
+    "severity": "high",
+    "threshold": 5,
+    "windowMinutes": 15,
+    "riskLevel": null,
+    "sensitiveOnly": true,
+    "updatedAtUtc": "2026-03-11T14:20:00Z"
+  }
+}
+```
+
+#### 2) `POST /api/compliance/alerts/rules/query`
+
+請求：
+
+```json
+{
+  "enabled": true,
+  "ruleType": "failed_requests",
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "查詢成功",
+  "payload": {
+    "total": 2,
+    "page": 1,
+    "pageSize": 20,
+    "rules": [
+      {
+        "ruleId": "failed-sensitive-burst",
+        "name": "敏感失敗請求異常",
+        "ruleType": "failed_requests",
+        "enabled": true,
+        "severity": "high",
+        "threshold": 5,
+        "windowMinutes": 15,
+        "riskLevel": null,
+        "sensitiveOnly": true,
+        "updatedAtUtc": "2026-03-11T14:20:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 3) `POST /api/compliance/alerts/evaluate`
+
+請求（使用 request-level `windowMinutes` override，並回傳每規則前 3 名觸發主體）：
+
+```json
+{
+  "windowMinutes": 30,
+  "topSubjects": 3,
+  "notifyChannels": ["in-app", "email"]
+}
+```
+
+回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "告警評估完成",
+  "payload": {
+    "evaluatedAtUtc": "2026-03-11T14:25:00Z",
+    "evaluatedRules": 3,
+    "triggeredAlerts": 1,
+    "alerts": [
+      {
+        "alertId": "alert-20260311142500-7f3f6ef5",
+        "ruleId": "failed-sensitive-burst",
+        "ruleName": "敏感失敗請求異常",
+        "severity": "high",
+        "severityScore": 80,
+        "triggeredAtUtc": "2026-03-11T14:25:00Z",
+        "windowMinutes": 30,
+        "triggerCount": 8,
+        "subject": "alice",
+        "topSubjects": [
+          { "subject": "alice", "triggerCount": 8, "topPaths": ["/api/declare(5)", "/api/keys/import(3)"] },
+          { "subject": "bob", "triggerCount": 6, "topPaths": ["/api/declare(6)"] }
+        ],
+        "suggestedAction": "通知合規人員檢查登入與操作紀錄",
+        "triggerDetails": [
+          "primaryUser=alice",
+          "primaryCount=8",
+          "triggeredSubjects=2",
+          "windowMinutes=30",
+          "sensitiveOnly=true",
+          "topSubjects=alice:8;bob:6"
+        ],
+        "notifyChannels": ["in-app", "email"]
+      }
+    ]
+  }
+}
+```
+
+#### 4) `POST /api/compliance/alerts/query`
+
+請求：
+
+```json
+{
+  "severity": "high",
+  "fromTriggeredAtUtc": "2026-03-11T00:00:00Z",
+  "toTriggeredAtUtc": "2026-03-11T23:59:59Z",
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "查詢成功",
+  "payload": {
+    "total": 1,
+    "page": 1,
+    "pageSize": 20,
+    "alerts": [
+      {
+        "alertId": "alert-20260311142500-7f3f6ef5",
+        "ruleId": "failed-sensitive-burst",
+        "ruleName": "敏感失敗請求異常",
+        "severity": "high",
+        "severityScore": 80,
+        "triggeredAtUtc": "2026-03-11T14:25:00Z",
+        "windowMinutes": 30,
+        "triggerCount": 8,
+        "subject": "alice",
+        "topSubjects": [
+          { "subject": "alice", "triggerCount": 8, "topPaths": ["/api/declare(5)", "/api/keys/import(3)"] }
+        ],
+        "suggestedAction": "通知合規人員檢查登入與操作紀錄",
+        "triggerDetails": ["primaryUser=alice", "primaryCount=8"],
+        "notifyChannels": ["in-app", "email"]
+      }
+    ]
+  }
+}
+```
+
 ### `ExternalComplianceData:Providers` 設定範例
 
 在 `backend/appsettings.json` 可設定多個資料源：

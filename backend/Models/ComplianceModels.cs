@@ -176,6 +176,13 @@ public class ComplianceAlertRulesPayload
     public List<ComplianceAlertRule> Rules { get; set; } = new();
 }
 
+public class ComplianceAlertSubjectTrigger
+{
+    public string Subject { get; set; } = string.Empty;
+    public int TriggerCount { get; set; }
+    public List<string> TopPaths { get; set; } = new();
+}
+
 public class ComplianceAlertRecord
 {
     public string AlertId { get; set; } = string.Empty;
@@ -187,6 +194,7 @@ public class ComplianceAlertRecord
     public int WindowMinutes { get; set; }
     public int TriggerCount { get; set; }
     public string Subject { get; set; } = string.Empty;
+    public List<ComplianceAlertSubjectTrigger> TopSubjects { get; set; } = new();
     public string SuggestedAction { get; set; } = string.Empty;
     public List<string> TriggerDetails { get; set; } = new();
     public List<string> NotifyChannels { get; set; } = new();

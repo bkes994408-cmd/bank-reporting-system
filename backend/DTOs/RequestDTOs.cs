@@ -321,6 +321,7 @@ public class ComplianceAlertRulesQueryRequest
 public class ComplianceAlertEvaluateRequest
 {
     public int? WindowMinutes { get; set; }
+    public int? TopSubjects { get; set; }
     public List<string>? NotifyChannels { get; set; }
 }
 

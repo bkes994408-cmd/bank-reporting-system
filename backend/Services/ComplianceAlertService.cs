@@ -80,32 +80,31 @@ public class ComplianceAlertService : IComplianceAlertService
     public ComplianceAlertEvaluateResult Evaluate(ComplianceAlertEvaluateRequest request)
     {
         var evaluatedAt = DateTime.UtcNow;
-        var uniqueWindows = _rules.Values.Where(x => x.Enabled).Select(x => x.WindowMinutes).Distinct().ToList();
-        if (request.WindowMinutes.HasValue)
-        {
-            uniqueWindows.Add(Math.Clamp(request.WindowMinutes.Value, 1, 24 * 60));
-        }
+        var windowOverride = request.WindowMinutes.HasValue
+            ? Math.Clamp(request.WindowMinutes.Value, 1, 24 * 60)
+            : (int?)null;
+        var topSubjects = request.TopSubjects.HasValue ? Math.Clamp(request.TopSubjects.Value, 1, 10) : 3;
 
-        uniqueWindows = uniqueWindows.Distinct().ToList();
+        var enabledRules = _rules.Values.Where(x => x.Enabled).ToList();
+        var uniqueWindows = enabledRules
+            .Select(rule => windowOverride ?? rule.WindowMinutes)
+            .Distinct()
+            .ToList();
+
         var windowData = uniqueWindows.ToDictionary(
             w => w,
-            w => _complianceAuditService.QueryTrails(new AuditTrailQueryRequest
-            {
-                StartDateUtc = evaluatedAt.AddMinutes(-w),
-                EndDateUtc = evaluatedAt,
-                Page = 1,
-                PageSize = 500
-            }).Records);
+            w => QueryAllTrails(evaluatedAt.AddMinutes(-w), evaluatedAt));
 
         var generated = new List<ComplianceAlertRecord>();
-        foreach (var rule in _rules.Values.Where(x => x.Enabled))
+        foreach (var rule in enabledRules)
         {
-            if (!windowData.TryGetValue(rule.WindowMinutes, out var records))
+            var effectiveWindow = windowOverride ?? rule.WindowMinutes;
+            if (!windowData.TryGetValue(effectiveWindow, out var records))
             {
                 continue;
             }
 
-            var alert = EvaluateRule(rule, records, request.NotifyChannels ?? new List<string>());
+            var alert = EvaluateRule(rule, records, effectiveWindow, topSubjects, request.NotifyChannels ?? new List<string>());
             if (alert is null)
             {
                 continue;
@@ -122,7 +121,7 @@ public class ComplianceAlertService : IComplianceAlertService
         return new ComplianceAlertEvaluateResult
         {
             EvaluatedAtUtc = evaluatedAt,
-            EvaluatedRules = _rules.Values.Count(x => x.Enabled),
+            EvaluatedRules = enabledRules.Count,
             TriggeredAlerts = generated.Count,
             Alerts = generated.OrderByDescending(x => x.SeverityScore).ThenByDescending(x => x.TriggerCount).ToList()
         };
@@ -168,24 +167,66 @@ public class ComplianceAlertService : IComplianceAlertService
         };
     }
 
-    private ComplianceAlertRecord? EvaluateRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
+    private List<AuditTrailRecord> QueryAllTrails(DateTime startDateUtc, DateTime endDateUtc)
     {
+        const int pageSize = 500;
+        var page = 1;
+        var records = new List<AuditTrailRecord>();
+
+        while (true)
+        {
+            var payload = _complianceAuditService.QueryTrails(new AuditTrailQueryRequest
+            {
+                StartDateUtc = startDateUtc,
+                EndDateUtc = endDateUtc,
+                Page = page,
+                PageSize = pageSize
+            });
+
+            if (payload.Records.Count == 0)
+            {
+                break;
+            }
+
+            records.AddRange(payload.Records);
+            if (records.Count >= payload.Total || payload.Records.Count < pageSize)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return records;
+    }
+
+    private ComplianceAlertRecord? EvaluateRule(
+        ComplianceAlertRule rule,
+        List<AuditTrailRecord> records,
+        int effectiveWindowMinutes,
+        int topSubjects,
+        List<string> notifyChannels)
+    {
+        var candidateRecords = rule.SensitiveOnly
+            ? records.Where(x => x.IsSensitiveOperation).ToList()
+            : records;
+
         IEnumerable<IGrouping<string, AuditTrailRecord>> grouped = Enumerable.Empty<IGrouping<string, AuditTrailRecord>>();
 
         switch (rule.RuleType)
         {
             case "failed_requests":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => x.StatusCode >= 400)
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;
             case "high_risk_operations":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => string.Equals(x.RiskLevel, rule.RiskLevel ?? "high", StringComparison.OrdinalIgnoreCase))
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;
             case "off_hours_sensitive":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => x.IsSensitiveOperation && (x.TimestampUtc.Hour < 6 || x.TimestampUtc.Hour >= 22))
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;
@@ -193,23 +234,30 @@ public class ComplianceAlertService : IComplianceAlertService
                 return null;
         }
 
-        var triggered = grouped
-            .Where(g => g.Count() >= rule.Threshold)
-            .OrderByDescending(g => g.Count())
-            .FirstOrDefault();
+        var triggeredSubjects = grouped
+            .Select(g => new ComplianceAlertSubjectTrigger
+            {
+                Subject = g.Key,
+                TriggerCount = g.Count(),
+                TopPaths = g
+                    .GroupBy(x => x.Path)
+                    .OrderByDescending(pathGroup => pathGroup.Count())
+                    .Take(3)
+                    .Select(pathGroup => $"{pathGroup.Key}({pathGroup.Count()})")
+                    .ToList()
+            })
+            .Where(x => x.TriggerCount >= rule.Threshold)
+            .OrderByDescending(x => x.TriggerCount)
+            .ThenBy(x => x.Subject, StringComparer.OrdinalIgnoreCase)
+            .Take(topSubjects)
+            .ToList();
 
-        if (triggered is null)
+        if (triggeredSubjects.Count == 0)
         {
             return null;
         }
 
-        var triggerCount = triggered.Count();
-        var topPaths = triggered
-            .GroupBy(x => x.Path)
-            .OrderByDescending(g => g.Count())
-            .Take(3)
-            .Select(g => $"{g.Key}({g.Count()})")
-            .ToList();
+        var primary = triggeredSubjects[0];
 
         return new ComplianceAlertRecord
         {
@@ -219,16 +267,19 @@ public class ComplianceAlertService : IComplianceAlertService
             Severity = rule.Severity,
             SeverityScore = SeverityScore(rule.Severity),
             TriggeredAtUtc = DateTime.UtcNow,
-            WindowMinutes = rule.WindowMinutes,
-            TriggerCount = triggerCount,
-            Subject = triggered.Key,
-            SuggestedAction = BuildSuggestedAction(rule, triggerCount),
+            WindowMinutes = effectiveWindowMinutes,
+            TriggerCount = primary.TriggerCount,
+            Subject = primary.Subject,
+            TopSubjects = triggeredSubjects,
+            SuggestedAction = BuildSuggestedAction(rule, primary.TriggerCount),
             TriggerDetails = new List<string>
             {
-                $"user={triggered.Key}",
-                $"count={triggerCount}",
-                $"windowMinutes={rule.WindowMinutes}",
-                $"topPaths={string.Join(",", topPaths)}"
+                $"primaryUser={primary.Subject}",
+                $"primaryCount={primary.TriggerCount}",
+                $"triggeredSubjects={triggeredSubjects.Count}",
+                $"windowMinutes={effectiveWindowMinutes}",
+                $"sensitiveOnly={rule.SensitiveOnly}",
+                $"topSubjects={string.Join(";", triggeredSubjects.Select(x => $"{x.Subject}:{x.TriggerCount}"))}"
             },
             NotifyChannels = notifyChannels.Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
