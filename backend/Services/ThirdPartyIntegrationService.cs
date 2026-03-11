@@ -52,7 +52,7 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
             };
         }
 
-        var result = await SyncPayloadAsync(item.Payload);
+        var result = await SyncPayloadAsync(item.Payload, deadLetterId);
         if (result.Payload?.Success == true)
         {
             _deadLetters.TryRemove(deadLetterId, out _);
@@ -73,7 +73,7 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
         }
 
         var syncPayload = BuildPayload(request, target.Name);
-        return await SyncPayloadAsync(syncPayload);
+        return await SyncPayloadAsync(syncPayload, null);
     }
 
     private ThirdPartySyncPayload BuildPayload(ThirdPartySyncRequest request, string systemName)
@@ -91,7 +91,7 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
             SyncedAtUtc = DateTimeOffset.UtcNow
         };
 
-    private async Task<ApiResponse<ThirdPartySyncResult>> SyncPayloadAsync(ThirdPartySyncPayload syncPayload)
+    private async Task<ApiResponse<ThirdPartySyncResult>> SyncPayloadAsync(ThirdPartySyncPayload syncPayload, string? existingDeadLetterId)
     {
         if (!_systems.TryGetValue(syncPayload.SystemName.Trim(), out var target) || !target.Enabled)
         {
@@ -102,7 +102,7 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
             };
         }
 
-        var maxAttempts = Math.Max(3, target.MaxRetries + 1);
+        var maxAttempts = Math.Max(1, target.MaxRetries + 1);
         var retryDelay = TimeSpan.FromMilliseconds(Math.Max(0, target.RetryDelayMilliseconds));
 
         string? lastErrorMessage = null;
@@ -153,7 +153,7 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
             }
         }
 
-        var deadLetter = await MoveToDeadLetterAsync(target, syncPayload, maxAttempts, lastStatusCode, lastErrorMessage ?? "unknown error");
+        var deadLetter = await MoveToDeadLetterAsync(target, syncPayload, maxAttempts, lastStatusCode, lastErrorMessage ?? "unknown error", existingDeadLetterId);
         return new ApiResponse<ThirdPartySyncResult>
         {
             Code = "5020",
@@ -173,6 +173,11 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
     private async Task<HttpResponseMessage> SendToTargetAsync(ThirdPartySystemConfig target, ThirdPartySyncPayload payload)
     {
         var client = _httpClientFactory.CreateClient();
+
+        if (target.TimeoutSeconds > 0)
+        {
+            client.Timeout = TimeSpan.FromSeconds(target.TimeoutSeconds);
+        }
 
         if (!string.IsNullOrWhiteSpace(target.ApiKey))
         {
@@ -207,18 +212,24 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
         ThirdPartySyncPayload payload,
         int attemptCount,
         int statusCode,
-        string errorMessage)
+        string errorMessage,
+        string? existingDeadLetterId)
     {
-        var record = new ThirdPartyDeadLetterRecord
-        {
-            Payload = payload,
-            ErrorCode = "5020",
-            ErrorMessage = errorMessage,
-            LastStatusCode = statusCode,
-            AttemptCount = attemptCount,
-            FirstFailedAtUtc = DateTimeOffset.UtcNow,
-            LastFailedAtUtc = DateTimeOffset.UtcNow
-        };
+        var now = DateTimeOffset.UtcNow;
+        var record = !string.IsNullOrWhiteSpace(existingDeadLetterId) && _deadLetters.TryGetValue(existingDeadLetterId, out var existing)
+            ? existing
+            : new ThirdPartyDeadLetterRecord
+            {
+                Payload = payload,
+                FirstFailedAtUtc = now
+            };
+
+        record.Payload = payload;
+        record.ErrorCode = "5020";
+        record.ErrorMessage = errorMessage;
+        record.LastStatusCode = statusCode;
+        record.AttemptCount = attemptCount;
+        record.LastFailedAtUtc = now;
 
         if (!string.IsNullOrWhiteSpace(target.CompensationPath))
         {
@@ -236,6 +247,11 @@ public class ThirdPartyIntegrationService : IThirdPartyIntegrationService
         try
         {
             var client = _httpClientFactory.CreateClient();
+            if (target.TimeoutSeconds > 0)
+            {
+                client.Timeout = TimeSpan.FromSeconds(target.TimeoutSeconds);
+            }
+
             if (!string.IsNullOrWhiteSpace(target.ApiKey))
             {
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", target.ApiKey);
