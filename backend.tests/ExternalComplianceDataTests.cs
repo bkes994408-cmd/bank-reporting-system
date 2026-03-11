@@ -56,6 +56,94 @@ public class ExternalComplianceDataServiceTests
         }, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task SyncRiskDataAsync_WhenHttpFailure_ThrowsHttpRequestException()
+    {
+        var service = BuildService(new StubHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)
+            {
+                Content = new StringContent("upstream error", Encoding.UTF8, "text/plain")
+            })));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => service.SyncRiskDataAsync(new ExternalRiskDataSyncRequest
+        {
+            ProviderName = "kyc-aml-provider",
+            DatasetType = "sanctions"
+        }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SyncRiskDataAsync_WhenPayloadIsInvalidJson_ThrowsJsonException()
+    {
+        var service = BuildService(new StubHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("not-json", Encoding.UTF8, "application/json")
+            })));
+
+        await Assert.ThrowsAnyAsync<System.Text.Json.JsonException>(() => service.SyncRiskDataAsync(new ExternalRiskDataSyncRequest
+        {
+            ProviderName = "kyc-aml-provider",
+            DatasetType = "sanctions"
+        }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SyncRiskDataAsync_WhenRequestCancelled_ThrowsTaskCanceledException()
+    {
+        var service = BuildService(new StubHttpMessageHandler(async (_, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("[]", Encoding.UTF8, "application/json")
+            };
+        }));
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(80));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.SyncRiskDataAsync(new ExternalRiskDataSyncRequest
+        {
+            ProviderName = "kyc-aml-provider",
+            DatasetType = "sanctions"
+        }, cts.Token));
+    }
+
+    [Fact]
+    public async Task SyncRiskDataAsync_FieldMappings_AreCaseInsensitive()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("[{\"entity_name\":\"Jane Roe\",\"country\":\"us\",\"severity\":\"low\"}]", Encoding.UTF8, "application/json")
+            }));
+
+        var service = BuildService(handler);
+        var result = await service.SyncRiskDataAsync(new ExternalRiskDataSyncRequest
+        {
+            ProviderName = "kyc-aml-provider",
+            DatasetType = "sanctions",
+            FieldMappings = new Dictionary<string, string>
+            {
+                ["NAME"] = "entity_name",
+                ["Country"] = "country",
+                ["RISKLEVEL"] = "severity"
+            }
+        }, CancellationToken.None);
+
+        Assert.Equal(1, result.ImportedCount);
+
+        var screening = service.ScreenRisk(new ExternalRiskScreeningRequest
+        {
+            CustomerName = "Jane Roe",
+            DatasetType = "sanctions"
+        });
+
+        Assert.Equal(1, screening.TotalMatches);
+        Assert.Equal("US", screening.Matches[0].Country);
+        Assert.Equal("low", screening.Matches[0].RiskLevel);
+    }
+
     private static ExternalComplianceDataService BuildService(HttpMessageHandler handler)
     {
         var factory = new Mock<IHttpClientFactory>();
@@ -75,15 +163,20 @@ public class ExternalComplianceDataServiceTests
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _handler;
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
 
         public StubHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
+            : this((request, _) => handler(request))
+        {
+        }
+
+        public StubHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         {
             _handler = handler;
         }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => _handler(request);
+            => _handler(request, cancellationToken);
     }
 }
 

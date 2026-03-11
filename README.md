@@ -179,6 +179,114 @@ docker compose down
 | GET | `/health` | 健康檢查（服務存活與版本） |
 | GET | `/metrics` | Prometheus 格式監控指標 |
 
+### `/api/compliance/external-data/sync` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `providerName`: 外部供應商名稱（需對應 `ExternalComplianceData:Providers[].Name`）
+- 選填欄位：
+  - `datasetType`: 風險資料類型（預設 `sanctions`）
+  - `pathOverride`: 暫時覆寫抓取路徑
+  - `fieldMappings`: 欄位映射（**key/value 皆會以 case-insensitive 方式處理**）
+
+請求範例：
+
+```json
+{
+  "providerName": "kyc-aml-provider",
+  "datasetType": "sanctions",
+  "fieldMappings": {
+    "Name": "entity_name",
+    "RISKLEVEL": "severity",
+    "country": "jurisdiction",
+    "tags": "tag_list"
+  }
+}
+```
+
+成功回應範例（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "外部風險數據同步成功",
+  "payload": {
+    "providerName": "kyc-aml-provider",
+    "datasetType": "sanctions",
+    "importedCount": 128,
+    "skippedCount": 4,
+    "syncedAtUtc": "2026-03-11T09:21:40Z"
+  }
+}
+```
+
+### `/api/compliance/external-data/screen` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `customerName`
+- 選填欄位：
+  - `country`
+  - `datasetType`
+
+請求範例：
+
+```json
+{
+  "customerName": "John Doe",
+  "country": "TW",
+  "datasetType": "sanctions"
+}
+```
+
+成功回應範例（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "風險比對完成",
+  "payload": {
+    "customerName": "John Doe",
+    "country": "TW",
+    "totalMatches": 1,
+    "suggestedDecision": "review",
+    "matches": [
+      {
+        "recordId": "risk-20260311092000-8c7b6e7d74f04f5d",
+        "providerName": "kyc-aml-provider",
+        "datasetType": "sanctions",
+        "name": "JOHN DOE",
+        "country": "TW",
+        "riskLevel": "high",
+        "score": 0.91,
+        "tags": ["sanction", "pep"]
+      }
+    ]
+  }
+}
+```
+
+### `ExternalComplianceData:Providers` 設定範例
+
+在 `backend/appsettings.json` 可設定多個資料源：
+
+```json
+{
+  "ExternalComplianceData": {
+    "Providers": [
+      {
+        "Name": "kyc-aml-provider",
+        "BaseUrl": "https://compliance.example.com",
+        "FetchPath": "/api/v1/risk-lists/sanctions",
+        "ApiKey": "${COMPLIANCE_API_KEY}",
+        "Enabled": true,
+        "TimeoutSeconds": 15
+      }
+    ]
+  }
+}
+```
+
 ## 📈 監控與告警（MVP 最小集合）
 
 - 後端會記錄每筆 API 請求的 method/path/status/duration。

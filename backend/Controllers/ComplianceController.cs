@@ -165,7 +165,7 @@ public class ComplianceController : ControllerBase
             ProviderName = request.ProviderName?.Trim() ?? string.Empty,
             DatasetType = request.DatasetType?.Trim() ?? "sanctions",
             PathOverride = request.PathOverride?.Trim(),
-            FieldMappings = request.FieldMappings
+            FieldMappings = ToCaseInsensitiveMappings(request.FieldMappings)
         };
 
         if (string.IsNullOrWhiteSpace(sanitized.ProviderName))
@@ -215,5 +215,28 @@ public class ComplianceController : ControllerBase
             Msg = "風險比對完成",
             Payload = result
         });
+    }
+
+    private static Dictionary<string, string>? ToCaseInsensitiveMappings(Dictionary<string, string>? fieldMappings)
+    {
+        if (fieldMappings is null)
+        {
+            return null;
+        }
+
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mapping in fieldMappings)
+        {
+            var key = mapping.Key?.Trim();
+            var value = mapping.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
     }
 }

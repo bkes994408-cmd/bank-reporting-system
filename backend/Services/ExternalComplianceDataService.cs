@@ -55,7 +55,7 @@ public class ExternalComplianceDataService : IExternalComplianceDataService
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         var sourceItems = ParseSourceItems(body);
-        var fieldMappings = request.FieldMappings ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var fieldMappings = ToCaseInsensitiveMappings(request.FieldMappings);
 
         var imported = 0;
         var skipped = 0;
@@ -236,6 +236,29 @@ public class ExternalComplianceDataService : IExternalComplianceDataService
             SourceUpdatedAtUtc = sourceUpdatedAtUtc,
             Raw = source.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    private static Dictionary<string, string> ToCaseInsensitiveMappings(Dictionary<string, string>? fieldMappings)
+    {
+        if (fieldMappings is null || fieldMappings.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mapping in fieldMappings)
+        {
+            var key = mapping.Key?.Trim();
+            var value = mapping.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
     }
 
     private static string SuggestDecision(List<ExternalRiskMatchItem> matches)
