@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 using BankReporting.Api.Services;
@@ -12,11 +11,16 @@ public class ComplianceController : ControllerBase
 {
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly IRegulationMonitoringService _regulationMonitoringService;
+    private readonly IExternalComplianceDataService _externalComplianceDataService;
 
-    public ComplianceController(IComplianceAuditService complianceAuditService, IRegulationMonitoringService regulationMonitoringService)
+    public ComplianceController(
+        IComplianceAuditService complianceAuditService,
+        IRegulationMonitoringService regulationMonitoringService,
+        IExternalComplianceDataService externalComplianceDataService)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
+        _externalComplianceDataService = externalComplianceDataService;
     }
 
     [HttpPost("audit-reports/generate")]
@@ -88,19 +92,10 @@ public class ComplianceController : ControllerBase
             Source = request.Source?.Trim() ?? string.Empty,
             DocumentCode = request.DocumentCode?.Trim() ?? string.Empty,
             Title = request.Title?.Trim() ?? string.Empty,
-            Content = request.Content?.Trim() ?? string.Empty,
+            Content = request.Content ?? string.Empty,
             PublishedAtUtc = request.PublishedAtUtc,
             Url = request.Url?.Trim()
         };
-
-        if (!TryValidateRequest(sanitized, out var errors))
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Code = "COMPLIANCE_4000",
-                Msg = string.Join("；", errors)
-            });
-        }
 
         var snapshot = _regulationMonitoringService.UpsertSnapshot(sanitized);
         return Ok(new ApiResponse<RegulationDocumentSnapshot>
@@ -120,18 +115,9 @@ public class ComplianceController : ControllerBase
             DocumentCode = request.DocumentCode?.Trim() ?? string.Empty
         };
 
-        if (!TryValidateRequest(sanitized, out var errors))
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Code = "COMPLIANCE_4000",
-                Msg = string.Join("；", errors)
-            });
-        }
-
         try
         {
-            var report = await _regulationMonitoringService.AnalyzeLatestAsync(sanitized, HttpContext?.RequestAborted ?? CancellationToken.None);
+            var report = await _regulationMonitoringService.AnalyzeLatestAsync(sanitized, CancellationToken.None);
             return Ok(new ApiResponse<RegulationImpactAnalysisRecord>
             {
                 Code = "0000",
@@ -145,14 +131,6 @@ public class ComplianceController : ControllerBase
             {
                 Code = "COMPLIANCE_4001",
                 Msg = ex.Message
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            return StatusCode(StatusCodes.Status408RequestTimeout, new ApiResponse<object>
-            {
-                Code = "COMPLIANCE_4008",
-                Msg = "請求已取消或逾時"
             });
         }
     }
@@ -170,15 +148,6 @@ public class ComplianceController : ControllerBase
             PageSize = request.PageSize
         };
 
-        if (!TryValidateRequest(sanitized, out var errors))
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Code = "COMPLIANCE_4000",
-                Msg = string.Join("；", errors)
-            });
-        }
-
         var result = _regulationMonitoringService.QueryImpactReports(sanitized);
         return Ok(new ApiResponse<RegulationImpactQueryPayload>
         {
@@ -188,19 +157,86 @@ public class ComplianceController : ControllerBase
         });
     }
 
-    private static bool TryValidateRequest<T>(T request, out List<string> errors)
+    [HttpPost("external-data/sync")]
+    public async Task<IActionResult> SyncExternalRiskData([FromBody] ExternalRiskDataSyncRequest request)
     {
-        var context = new ValidationContext(request!);
-        var validationResults = new List<ValidationResult>();
-        var isValid = Validator.TryValidateObject(request!, context, validationResults, validateAllProperties: true);
+        var sanitized = new ExternalRiskDataSyncRequest
+        {
+            ProviderName = request.ProviderName?.Trim() ?? string.Empty,
+            DatasetType = request.DatasetType?.Trim() ?? "sanctions",
+            PathOverride = request.PathOverride?.Trim(),
+            FieldMappings = ToCaseInsensitiveMappings(request.FieldMappings)
+        };
 
-        errors = validationResults
-            .Select(x => x.ErrorMessage)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Cast<string>()
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        if (string.IsNullOrWhiteSpace(sanitized.ProviderName))
+        {
+            return BadRequest(new ApiResponse<object> { Code = "COMPLIANCE_4002", Msg = "providerName 為必填" });
+        }
 
-        return isValid;
+        try
+        {
+            var result = await _externalComplianceDataService.SyncRiskDataAsync(sanitized, CancellationToken.None);
+            return Ok(new ApiResponse<ExternalRiskDataSyncResult>
+            {
+                Code = "0000",
+                Msg = "外部風險數據同步成功",
+                Payload = result
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4003",
+                Msg = ex.Message
+            });
+        }
+    }
+
+    [HttpPost("external-data/screen")]
+    public IActionResult ScreenExternalRisk([FromBody] ExternalRiskScreeningRequest request)
+    {
+        var sanitized = new ExternalRiskScreeningRequest
+        {
+            CustomerName = request.CustomerName?.Trim() ?? string.Empty,
+            Country = request.Country?.Trim(),
+            DatasetType = request.DatasetType?.Trim()
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.CustomerName))
+        {
+            return BadRequest(new ApiResponse<object> { Code = "COMPLIANCE_4004", Msg = "customerName 為必填" });
+        }
+
+        var result = _externalComplianceDataService.ScreenRisk(sanitized);
+        return Ok(new ApiResponse<ExternalRiskScreeningResult>
+        {
+            Code = "0000",
+            Msg = "風險比對完成",
+            Payload = result
+        });
+    }
+
+    private static Dictionary<string, string>? ToCaseInsensitiveMappings(Dictionary<string, string>? fieldMappings)
+    {
+        if (fieldMappings is null)
+        {
+            return null;
+        }
+
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mapping in fieldMappings)
+        {
+            var key = mapping.Key?.Trim();
+            var value = mapping.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
     }
 }
