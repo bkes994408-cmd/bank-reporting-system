@@ -265,6 +265,135 @@ public class ComplianceAlertServiceTests
     }
 
     [Fact]
+    public void Evaluate_HighRiskSensitiveOnly_IgnoresSensitiveButNonHighRiskRecords()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-only-high-risk-level-filter",
+            Name = "Sensitive only high risk with level filter",
+            RuleType = "high_risk_operations",
+            Enabled = true,
+            Threshold = 2,
+            WindowMinutes = 10,
+            RiskLevel = "high",
+            SensitiveOnly = true
+        });
+
+        // 兩筆敏感但非 high 風險，應被 high_risk_operations 規則排除
+        for (var i = 0; i < 2; i++)
+        {
+            auditService.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+                User = "dora",
+                Method = "POST",
+                Path = "/api/keys/import",
+                StatusCode = 200,
+                IsSensitiveOperation = true,
+                RiskLevel = "medium"
+            });
+        }
+
+        // 只有 1 筆同時滿足 sensitive + high risk，未達 threshold 不應觸發
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "dora",
+            Method = "POST",
+            Path = "/api/keys/import",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var first = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.DoesNotContain(first.Alerts, x => x.RuleId == "sensitive-only-high-risk-level-filter");
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "dora",
+            Method = "POST",
+            Path = "/api/keys/import",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var second = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        var alert = Assert.Single(second.Alerts.Where(x => x.RuleId == "sensitive-only-high-risk-level-filter"));
+        Assert.Equal(2, alert.TriggerCount);
+    }
+
+    [Fact]
+    public void Evaluate_OffHoursSensitiveOnly_IgnoresInHoursSensitiveRecords()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-only-off-hours-time-filter",
+            Name = "Sensitive only off-hours with time filter",
+            RuleType = "off_hours_sensitive",
+            Enabled = true,
+            Threshold = 2,
+            WindowMinutes = 1440,
+            SensitiveOnly = true
+        });
+
+        var dayTimeUtc = DateTime.UtcNow.Date.AddHours(10);
+        var offHoursUtc = DateTime.UtcNow.Date.AddHours(2);
+
+        // 兩筆敏感但在上班時段，off_hours_sensitive 應排除
+        for (var i = 0; i < 2; i++)
+        {
+            auditService.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = dayTimeUtc.AddMinutes(i),
+                User = "eric",
+                Method = "POST",
+                Path = "/api/declare",
+                StatusCode = 200,
+                IsSensitiveOperation = true,
+                RiskLevel = "medium"
+            });
+        }
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = offHoursUtc,
+            User = "eric",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+
+        var first = service.Evaluate(new ComplianceAlertEvaluateRequest { WindowMinutes = 1440 });
+        Assert.DoesNotContain(first.Alerts, x => x.RuleId == "sensitive-only-off-hours-time-filter");
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = offHoursUtc.AddMinutes(-1),
+            User = "eric",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+
+        var second = service.Evaluate(new ComplianceAlertEvaluateRequest { WindowMinutes = 1440 });
+        var alert = Assert.Single(second.Alerts.Where(x => x.RuleId == "sensitive-only-off-hours-time-filter"));
+        Assert.Equal(2, alert.TriggerCount);
+    }
+
+    [Fact]
     public void Evaluate_ReturnsTopSubjects_WhenMultipleUsersTriggered()
     {
         var auditService = new ComplianceAuditService();
@@ -360,6 +489,29 @@ public class ComplianceAlertServiceTests
         var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
         var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "paging-1000"));
         Assert.Equal(1000, alert.TriggerCount);
+    }
+
+    [Fact]
+    public void Evaluate_PagingBoundary_1001Records_IncludesTrailingPartialPage()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "paging-1001",
+            Name = "Paging 1001",
+            RuleType = "failed_requests",
+            Enabled = true,
+            Threshold = 1001,
+            WindowMinutes = 30
+        });
+
+        AddFailed(auditService, "henry", 1001);
+
+        var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "paging-1001"));
+        Assert.Equal(1001, alert.TriggerCount);
     }
 
     private static void AddFailed(ComplianceAuditService auditService, string user, int count)
