@@ -207,3 +207,37 @@ public class ComplianceAlertQueryPayload
     public int PageSize { get; set; }
     public List<ComplianceAlertRecord> Alerts { get; set; } = new();
 }
+
+public class BlockchainAuditAnchorRecord
+{
+    public string AnchorId { get; set; } = string.Empty;
+    public string AnchorType { get; set; } = "audit_trail";
+    public string Network { get; set; } = "sandbox-ledger";
+    public string Summary { get; set; } = string.Empty;
+    public string PayloadHash { get; set; } = string.Empty;
+    public string AnchorHash { get; set; } = string.Empty;
+    public string? PreviousAnchorHash { get; set; }
+    public string SuggestedVerification { get; set; } = string.Empty;
+    public List<string> AuditTrailIds { get; set; } = new();
+    public Dictionary<string, string> Metadata { get; set; } = new();
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public class BlockchainAuditAnchorQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<BlockchainAuditAnchorRecord> Records { get; set; } = new();
+}
+
+public class BlockchainDataSharingSimulationResult
+{
+    public string PackageId { get; set; } = string.Empty;
+    public DateTime GeneratedAtUtc { get; set; }
+    public List<string> Participants { get; set; } = new();
+    public List<string> Fields { get; set; } = new();
+    public string RecommendedMode { get; set; } = "proof-with-hash-pointer";
+    public List<string> PolicyViolations { get; set; } = new();
+    public List<string> SuggestedNextActions { get; set; } = new();
+}

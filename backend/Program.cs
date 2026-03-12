@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IRegulationMonitoringService, RegulationMonitoring
 builder.Services.AddHttpClient(nameof(ExternalComplianceDataService));
 builder.Services.AddSingleton<IExternalComplianceDataService, ExternalComplianceDataService>();
 builder.Services.AddSingleton<IComplianceAlertService, ComplianceAlertService>();
+builder.Services.AddSingleton<IBlockchainComplianceService, BlockchainComplianceService>();
 builder.Services.AddSingleton<IEncryptedExportArchiveService, EncryptedExportArchiveService>();
 
 var app = builder.Build();
