@@ -271,6 +271,12 @@ docker compose down
 
 ### `/api/compliance/blockchain/anchors/commit` 契約（MVP-6 探索）
 
+> ⚠️ **PoC 限制說明（重要）**
+> - 本功能為探索性 PoC，僅用於驗證流程，不可視為正式鏈上稽核解決方案。
+> - 錨點資料目前儲存在 API 服務記憶體中，服務重啟後資料會遺失。
+> - 未導入分散式共識機制，亦不提供真正不可竄改（tamper-proof）保證。
+> - 生產環境請改用具備持久化、共識與節點治理能力的正式區塊鏈/分散式帳本架構。
+
 - Content-Type: `application/json`
 - 必填欄位：無（會使用預設值）
 - 常用欄位：

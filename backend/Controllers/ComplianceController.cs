@@ -321,13 +321,24 @@ public class ComplianceController : ControllerBase
             Metadata = request.Metadata
         };
 
-        var result = _blockchainComplianceService.CommitAuditAnchor(sanitized);
-        return Ok(new ApiResponse<BlockchainAuditAnchorRecord>
+        try
         {
-            Code = "0000",
-            Msg = "區塊鏈稽核錨點寫入成功（探索）",
-            Payload = result
-        });
+            var result = _blockchainComplianceService.CommitAuditAnchor(sanitized);
+            return Ok(new ApiResponse<BlockchainAuditAnchorRecord>
+            {
+                Code = "0000",
+                Msg = "區塊鏈稽核錨點寫入成功（探索）",
+                Payload = result
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4006",
+                Msg = ex.Message
+            });
+        }
     }
 
     [HttpPost("blockchain/anchors/query")]
