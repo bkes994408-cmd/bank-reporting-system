@@ -58,7 +58,7 @@
     *   數據標準化與轉換：開發彈性的數據轉換引擎，將內部數據格式自動匹配外部系統的要求，並處理數據驗證與清洗。
     *   難點：異構系統的數據對接複雜性，數據安全與隱私保護的合規性。
 
-*   [ ] 預警與異常行為檢測
+*   [x] 預警與異常行為檢測
     *   機器學習驅動的異常檢測模型：應用監督式或非監督式機器學習模型，分析歷史申報數據、交易記錄、用戶行為，識別潛在的洗錢、詐欺或其他不合規行為模式。
     *   可配置的預警規則與閥值：提供靈活的配置界面，允許合規人員自定義預警規則、設定風險閾值，並支持多級別（如：低、中、高）的告警通知。
     *   告警觸發與響應機制：當檢測到異常行為時，自動觸發告警通知（郵件、簡訊、應用內通知），並引導合規人員進行調查，生成詳細的異常報告。
@@ -87,6 +87,7 @@
 - 完成 MVP-5 項目「對外整合重試/補償機制（含死信佇列）」：第三方同步導入 retry/backoff、補償呼叫（compensation path）、死信佇列查詢與人工重送 API（`/api/integrations/third-party/dead-letters`、`/api/integrations/third-party/dead-letters/{deadLetterId}/retry`）。
 - 完成 MVP-6 項目「自動化法規更新監測與影響分析」：新增法規快照寫入、版本差異比對、規則式影響評估與建議動作，並提供 API（`/api/compliance/regulations/snapshots`、`/api/compliance/regulations/impact-analysis/generate`、`/api/compliance/regulations/impact-analysis/query`）。
 - 完成 MVP-6 項目「與外部合規平台/數據源集成」：新增外部合規數據源同步與風險名單比對能力，支援欄位映射標準化與風險決策建議 API（`/api/compliance/external-data/sync`、`/api/compliance/external-data/screen`）。
+- 完成 MVP-6 項目「預警與異常行為檢測」：新增可配置告警規則、告警評估與查詢能力，提供 API（`/api/compliance/alerts/rules/upsert`、`/api/compliance/alerts/rules/query`、`/api/compliance/alerts/evaluate`、`/api/compliance/alerts/query`），支援失敗請求突增/高風險操作/夜間敏感操作異常檢測與建議處置。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

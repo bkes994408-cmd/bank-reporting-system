@@ -287,3 +287,53 @@ public class ExternalRiskScreeningRequest
     public string? Country { get; set; }
     public string? DatasetType { get; set; }
 }
+
+/// <summary>
+/// 合規告警規則建立/更新請求
+/// </summary>
+public class ComplianceAlertRuleUpsertRequest
+{
+    public string? RuleId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string RuleType { get; set; } = "failed_requests";
+    public bool Enabled { get; set; } = true;
+    public string Severity { get; set; } = "medium";
+    public int Threshold { get; set; } = 1;
+    public int WindowMinutes { get; set; } = 15;
+    public string? RiskLevel { get; set; }
+    public bool SensitiveOnly { get; set; }
+}
+
+/// <summary>
+/// 合規告警規則查詢請求
+/// </summary>
+public class ComplianceAlertRulesQueryRequest
+{
+    public bool? Enabled { get; set; }
+    public string? RuleType { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
+/// 合規告警評估請求
+/// </summary>
+public class ComplianceAlertEvaluateRequest
+{
+    public int? WindowMinutes { get; set; }
+    public int? TopSubjects { get; set; }
+    public List<string>? NotifyChannels { get; set; }
+}
+
+/// <summary>
+/// 合規告警查詢請求
+/// </summary>
+public class ComplianceAlertQueryRequest
+{
+    public string? RuleId { get; set; }
+    public string? Severity { get; set; }
+    public DateTime? FromTriggeredAtUtc { get; set; }
+    public DateTime? ToTriggeredAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}

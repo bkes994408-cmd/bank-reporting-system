@@ -88,7 +88,8 @@ public class ComplianceControllerTests
     {
         var auditService = new ComplianceAuditService();
         var regulationService = new RegulationMonitoringService();
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService());
+        var alertService = new ComplianceAlertService(auditService);
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService);
 
         var result = await controller.GenerateAuditReport(new ComplianceAuditReportGenerateRequest());
 
@@ -110,7 +111,8 @@ public class ComplianceControllerTests
             RiskLevel = "medium"
         });
 
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService());
+        var alertService = new ComplianceAlertService(auditService);
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService);
         var result = controller.QueryAuditTrails(new AuditTrailQueryRequest
         {
             User = " alice ",
@@ -136,7 +138,8 @@ public class ComplianceControllerTests
             Content = "第一條 測試"
         });
 
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService());
+        var alertService = new ComplianceAlertService(auditService);
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService);
         var result = await controller.GenerateRegulationImpactAnalysis(new RegulationImpactAnalysisRequest
         {
             Source = "FSC",
