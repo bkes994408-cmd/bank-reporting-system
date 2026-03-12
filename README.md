@@ -271,6 +271,13 @@ docker compose down
 
 ### `/api/compliance/blockchain/anchors/commit` 契約（MVP-6 探索）
 
+> ⚠️ **PoC 限制說明（請務必先讀）**
+>
+> 1. 目前為探索性 PoC，資料僅存於後端程序記憶體。
+> 2. 服務重啟後，已寫入的 anchor 會全部消失，不具持久化。
+> 3. 此實作不提供分散式共識、拜占庭容錯或鏈上不可竄改保證。
+> 4. 僅適合流程驗證與介面演示，不可作為正式法遵存證系統。
+
 - Content-Type: `application/json`
 - 必填欄位：無（會使用預設值）
 - 常用欄位：

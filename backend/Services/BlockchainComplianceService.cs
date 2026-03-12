@@ -16,11 +16,12 @@ public interface IBlockchainComplianceService
 public class BlockchainComplianceService : IBlockchainComplianceService
 {
     private readonly ConcurrentDictionary<string, BlockchainAuditAnchorRecord> _anchors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _anchorLock = new();
 
     public BlockchainAuditAnchorRecord CommitAuditAnchor(BlockchainAuditAnchorCommitRequest request)
     {
         var now = DateTime.UtcNow;
-        var anchorId = $"anchor-{now:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..36];
+        var anchorId = $"anchor-{now:yyyyMMddHHmmss}-{Guid.NewGuid():N}";
 
         var normalizedTrailIds = (request.AuditTrailIds ?? new List<string>())
             .Select(x => x.Trim())
@@ -31,36 +32,37 @@ public class BlockchainComplianceService : IBlockchainComplianceService
         var network = string.IsNullOrWhiteSpace(request.Network) ? "sandbox-ledger" : request.Network.Trim();
         var anchorType = string.IsNullOrWhiteSpace(request.AnchorType) ? "audit_trail" : request.AnchorType.Trim();
         var summary = string.IsNullOrWhiteSpace(request.Summary) ? "compliance checkpoint" : request.Summary.Trim();
+        var payloadHash = ResolvePayloadHash(request.PayloadHash, anchorType, normalizedTrailIds, summary, request.Metadata);
+        var normalizedMetadata = NormalizeMetadata(request.Metadata);
 
-        var previous = _anchors.Values
-            .Where(x => string.Equals(x.Network, network, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .FirstOrDefault();
-
-        var payloadHash = Sha256Hex(string.IsNullOrWhiteSpace(request.PayloadHash)
-            ? BuildSourceDigest(anchorType, normalizedTrailIds, summary, request.Metadata)
-            : request.PayloadHash.Trim().ToLowerInvariant());
-
-        var previousHash = previous?.AnchorHash;
-        var anchorHash = Sha256Hex($"{payloadHash}|{previousHash ?? "GENESIS"}|{now:O}|{network}");
-
-        var record = new BlockchainAuditAnchorRecord
+        lock (_anchorLock)
         {
-            AnchorId = anchorId,
-            AnchorType = anchorType,
-            Network = network,
-            Summary = summary,
-            PayloadHash = payloadHash,
-            AnchorHash = anchorHash,
-            PreviousAnchorHash = previousHash,
-            SuggestedVerification = $"重新計算 SHA-256(payloadHash|previousHash|timestamp|network) 並與 {anchorHash[..16]}... 比對",
-            AuditTrailIds = normalizedTrailIds,
-            Metadata = new Dictionary<string, string>(request.Metadata ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
-            CreatedAtUtc = now
-        };
+            var previous = _anchors.Values
+                .Where(x => string.Equals(x.Network, network, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .FirstOrDefault();
 
-        _anchors[anchorId] = record;
-        return record;
+            var previousHash = previous?.AnchorHash;
+            var anchorHash = Sha256Hex($"{payloadHash}|{previousHash ?? "GENESIS"}|{now:O}|{network}");
+
+            var record = new BlockchainAuditAnchorRecord
+            {
+                AnchorId = anchorId,
+                AnchorType = anchorType,
+                Network = network,
+                Summary = summary,
+                PayloadHash = payloadHash,
+                AnchorHash = anchorHash,
+                PreviousAnchorHash = previousHash,
+                SuggestedVerification = $"重新計算 SHA-256(payloadHash|previousHash|timestamp|network) 並與 {anchorHash[..16]}... 比對",
+                AuditTrailIds = normalizedTrailIds,
+                Metadata = normalizedMetadata,
+                CreatedAtUtc = now
+            };
+
+            _anchors[anchorId] = record;
+            return record;
+        }
     }
 
     public BlockchainAuditAnchorQueryPayload QueryAuditAnchors(BlockchainAuditAnchorQueryRequest request)
@@ -124,7 +126,7 @@ public class BlockchainComplianceService : IBlockchainComplianceService
         }
 
         var recommendedMode = policyViolations.Count == 0 ? "proof-with-hash-pointer" : "zk-proof-or-aggregated-metrics";
-        var packageId = $"share-{now:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
+        var packageId = $"share-{now:yyyyMMddHHmmss}-{Guid.NewGuid():N}";
 
         return new BlockchainDataSharingSimulationResult
         {
@@ -155,13 +157,52 @@ public class BlockchainComplianceService : IBlockchainComplianceService
         };
     }
 
+    private static string ResolvePayloadHash(string? requestPayloadHash, string anchorType, List<string> trailIds, string summary, Dictionary<string, string>? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(requestPayloadHash))
+        {
+            return BuildSourceDigest(anchorType, trailIds, summary, metadata);
+        }
+
+        var normalized = requestPayloadHash.Trim().ToLowerInvariant();
+        if (normalized.Length != 64 || normalized.Any(ch => !Uri.IsHexDigit(ch)))
+        {
+            throw new ArgumentException("payloadHash 必須為 64 位十六進位 SHA-256 字串", nameof(requestPayloadHash));
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> NormalizeMetadata(Dictionary<string, string>? metadata)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (metadata is null)
+        {
+            return normalized;
+        }
+
+        foreach (var kv in metadata)
+        {
+            var key = kv.Key?.Trim();
+            var value = kv.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key.ToLowerInvariant()] = value;
+        }
+
+        return normalized;
+    }
+
     private static string BuildSourceDigest(string anchorType, List<string> trailIds, string summary, Dictionary<string, string>? metadata)
     {
-        var metadataText = metadata is null
-            ? string.Empty
-            : string.Join(";", metadata.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => $"{x.Key.Trim()}={x.Value?.Trim()}"));
+        var metadataText = NormalizeMetadata(metadata)
+            .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(x => $"{x.Key}={x.Value}");
 
-        return Sha256Hex($"{anchorType}|{summary}|{string.Join(',', trailIds)}|{metadataText}");
+        return Sha256Hex($"{anchorType}|{summary}|{string.Join(',', trailIds)}|{string.Join(';', metadataText)}");
     }
 
     private static string Sha256Hex(string input)
