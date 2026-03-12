@@ -189,7 +189,7 @@ public class ExternalComplianceDataControllerTests
         var regulationService = new RegulationMonitoringService();
         var externalService = new Mock<IExternalComplianceDataService>();
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, externalService.Object, alertService);
+        var controller = new ComplianceController(auditService, regulationService, externalService.Object, alertService, new BlockchainComplianceService());
 
         var result = await controller.SyncExternalRiskData(new ExternalRiskDataSyncRequest());
 
@@ -203,7 +203,7 @@ public class ExternalComplianceDataControllerTests
         var regulationService = new RegulationMonitoringService();
         var externalService = new Mock<IExternalComplianceDataService>();
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, externalService.Object, alertService);
+        var controller = new ComplianceController(auditService, regulationService, externalService.Object, alertService, new BlockchainComplianceService());
 
         var result = controller.ScreenExternalRisk(new ExternalRiskScreeningRequest());
 

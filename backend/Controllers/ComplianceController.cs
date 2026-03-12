@@ -13,17 +13,20 @@ public class ComplianceController : ControllerBase
     private readonly IRegulationMonitoringService _regulationMonitoringService;
     private readonly IExternalComplianceDataService _externalComplianceDataService;
     private readonly IComplianceAlertService _complianceAlertService;
+    private readonly IBlockchainComplianceService _blockchainComplianceService;
 
     public ComplianceController(
         IComplianceAuditService complianceAuditService,
         IRegulationMonitoringService regulationMonitoringService,
         IExternalComplianceDataService externalComplianceDataService,
-        IComplianceAlertService complianceAlertService)
+        IComplianceAlertService complianceAlertService,
+        IBlockchainComplianceService blockchainComplianceService)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
         _externalComplianceDataService = externalComplianceDataService;
         _complianceAlertService = complianceAlertService;
+        _blockchainComplianceService = blockchainComplianceService;
     }
 
     [HttpPost("audit-reports/generate")]
@@ -301,6 +304,80 @@ public class ComplianceController : ControllerBase
         {
             Code = "0000",
             Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("blockchain/anchors/commit")]
+    public IActionResult CommitBlockchainAnchor([FromBody] BlockchainAuditAnchorCommitRequest request)
+    {
+        var sanitized = new BlockchainAuditAnchorCommitRequest
+        {
+            AnchorType = request.AnchorType?.Trim() ?? "audit_trail",
+            Network = request.Network?.Trim() ?? "sandbox-ledger",
+            PayloadHash = request.PayloadHash?.Trim(),
+            Summary = request.Summary?.Trim() ?? string.Empty,
+            AuditTrailIds = request.AuditTrailIds,
+            Metadata = request.Metadata
+        };
+
+        var result = _blockchainComplianceService.CommitAuditAnchor(sanitized);
+        return Ok(new ApiResponse<BlockchainAuditAnchorRecord>
+        {
+            Code = "0000",
+            Msg = "區塊鏈稽核錨點寫入成功（探索）",
+            Payload = result
+        });
+    }
+
+    [HttpPost("blockchain/anchors/query")]
+    public IActionResult QueryBlockchainAnchors([FromBody] BlockchainAuditAnchorQueryRequest request)
+    {
+        var sanitized = new BlockchainAuditAnchorQueryRequest
+        {
+            AnchorType = request.AnchorType?.Trim(),
+            Network = request.Network?.Trim(),
+            FromCreatedAtUtc = request.FromCreatedAtUtc,
+            ToCreatedAtUtc = request.ToCreatedAtUtc,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _blockchainComplianceService.QueryAuditAnchors(sanitized);
+        return Ok(new ApiResponse<BlockchainAuditAnchorQueryPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("blockchain/sharing/simulate")]
+    public IActionResult SimulateBlockchainDataSharing([FromBody] BlockchainDataSharingSimulationRequest request)
+    {
+        var sanitized = new BlockchainDataSharingSimulationRequest
+        {
+            SourceInstitution = request.SourceInstitution?.Trim() ?? string.Empty,
+            TargetInstitution = request.TargetInstitution?.Trim() ?? string.Empty,
+            Regulator = request.Regulator?.Trim(),
+            Purpose = request.Purpose?.Trim(),
+            Fields = request.Fields
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.SourceInstitution) || string.IsNullOrWhiteSpace(sanitized.TargetInstitution))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4005",
+                Msg = "sourceInstitution / targetInstitution 為必填"
+            });
+        }
+
+        var result = _blockchainComplianceService.SimulateDataSharing(sanitized);
+        return Ok(new ApiResponse<BlockchainDataSharingSimulationResult>
+        {
+            Code = "0000",
+            Msg = "區塊鏈共享方案模擬完成（探索）",
             Payload = result
         });
     }
