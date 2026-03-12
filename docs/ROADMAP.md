@@ -64,7 +64,7 @@
     *   告警觸發與響應機制：當檢測到異常行為時，自動觸發告警通知（郵件、簡訊、應用內通知），並引導合規人員進行調查，生成詳細的異常報告。
     *   難點：高精度異常檢測模型的訓練與調優，降低誤報率，確保模型可解釋性。
 
-*   [ ] 區塊鏈技術應用探索 (可選)
+*   [x] 區塊鏈技術應用探索 (可選)
     *   關鍵審計軌跡上鏈：探索將關鍵的審計軌跡、申報證明、法規符合性聲明等核心數據以加密形式上傳至區塊鏈，利用其不可篡改性與時間戳特性，增強數據的公信力與可追溯性。
     *   基於區塊鏈的數據共享方案：研究如何在保護隱私的前提下，利用區塊鏈技術實現銀行間或監管機構與銀行之間的安全、高效數據共享。
     *   難點：區塊鏈技術在金融領域的合規性與監管接受度，性能與擴展性問題。
@@ -88,6 +88,7 @@
 - 完成 MVP-6 項目「自動化法規更新監測與影響分析」：新增法規快照寫入、版本差異比對、規則式影響評估與建議動作，並提供 API（`/api/compliance/regulations/snapshots`、`/api/compliance/regulations/impact-analysis/generate`、`/api/compliance/regulations/impact-analysis/query`）。
 - 完成 MVP-6 項目「與外部合規平台/數據源集成」：新增外部合規數據源同步與風險名單比對能力，支援欄位映射標準化與風險決策建議 API（`/api/compliance/external-data/sync`、`/api/compliance/external-data/screen`）。
 - 完成 MVP-6 項目「預警與異常行為檢測」：新增可配置告警規則、告警評估與查詢能力，提供 API（`/api/compliance/alerts/rules/upsert`、`/api/compliance/alerts/rules/query`、`/api/compliance/alerts/evaluate`、`/api/compliance/alerts/query`），支援失敗請求突增/高風險操作/夜間敏感操作異常檢測與建議處置。
+- 完成 MVP-6 可選項「區塊鏈技術應用探索」：新增稽核錨點寫入/查詢與跨機構共享方案模擬 API（`/api/compliance/blockchain/anchors/commit`、`/api/compliance/blockchain/anchors/query`、`/api/compliance/blockchain/sharing/simulate`），支援 hash-chain 溯源與共享風險策略建議。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

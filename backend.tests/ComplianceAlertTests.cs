@@ -72,7 +72,8 @@ public class ComplianceAlertsControllerTests
             RiskLevel = "high"
         });
 
-        var controller = new ComplianceController(auditService, regulationService, externalService, alertService);
+        var blockchainService = new BlockchainComplianceService();
+        var controller = new ComplianceController(auditService, regulationService, externalService, alertService, blockchainService);
         var result = controller.EvaluateAlerts(new ComplianceAlertEvaluateRequest());
 
         var ok = Assert.IsType<OkObjectResult>(result);
@@ -87,7 +88,8 @@ public class ComplianceAlertsControllerTests
         var regulationService = new RegulationMonitoringService();
         var externalService = new StubExternalComplianceDataService();
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, externalService, alertService);
+        var blockchainService = new BlockchainComplianceService();
+        var controller = new ComplianceController(auditService, regulationService, externalService, alertService, blockchainService);
 
         var result = controller.UpsertAlertRule(new ComplianceAlertRuleUpsertRequest
         {
