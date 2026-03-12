@@ -351,6 +351,14 @@ docker compose down
 - `minStatusCode` / `maxStatusCode`：依 HTTP status code 範圍篩選
 - `minDurationMs`：依最小耗時篩選
 
+### `/api/compliance/alerts/rules` 重要欄位說明
+
+- `ruleType` 支援：`failed_requests`、`high_risk_operations`、`off_hours_sensitive`
+- `sensitiveOnly` 行為：
+  - `true`：先篩選 `isSensitiveOperation=true` 的稽核紀錄，再套用規則條件
+  - `false`：對所有稽核紀錄套用規則條件
+- 因此 `failed_requests` 與 `high_risk_operations` 在 `sensitiveOnly=true` 時，只會以敏感操作計算觸發門檻。
+
 ### `ExternalComplianceData:Providers` 設定範例
 
 在 `backend/appsettings.json` 可設定多個資料源：
