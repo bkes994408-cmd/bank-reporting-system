@@ -166,6 +166,9 @@ docker compose down
 | POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/compliance/external-data/sync` | 同步外部合規平台風險數據（制裁/PEP 等） |
 | POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
+| POST | `/api/compliance/blockchain/anchors/commit` | 寫入區塊鏈稽核錨點（探索） |
+| POST | `/api/compliance/blockchain/anchors/query` | 查詢區塊鏈稽核錨點（探索） |
+| POST | `/api/compliance/blockchain/sharing/simulate` | 模擬區塊鏈資料共享方案（探索） |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |
@@ -266,183 +269,45 @@ docker compose down
 }
 ```
 
-### Alerts API（MVP-6）範例
+### `/api/compliance/blockchain/anchors/commit` 契約（MVP-6 探索）
 
-#### 1) `POST /api/compliance/alerts/rules/upsert`
+> ⚠️ **PoC 限制說明（重要）**
+> - 本功能為探索性 PoC，僅用於驗證流程，不可視為正式鏈上稽核解決方案。
+> - 錨點資料目前儲存在 API 服務記憶體中，服務重啟後資料會遺失。
+> - 未導入分散式共識機制，亦不提供真正不可竄改（tamper-proof）保證。
+> - 生產環境請改用具備持久化、共識與節點治理能力的正式區塊鏈/分散式帳本架構。
 
-請求：
+- Content-Type: `application/json`
+- 必填欄位：無（會使用預設值）
+- 常用欄位：
+  - `anchorType`（預設 `audit_trail`）
+  - `network`（預設 `sandbox-ledger`）
+  - `auditTrailIds`（欲上鏈的稽核軌跡識別）
+  - `summary`（本次錨點摘要）
+
+請求範例：
 
 ```json
 {
-  "ruleId": "failed-sensitive-burst",
-  "name": "敏感失敗請求異常",
-  "ruleType": "failed_requests",
-  "enabled": true,
-  "severity": "high",
-  "threshold": 5,
-  "windowMinutes": 15,
-  "sensitiveOnly": true
+  "anchorType": "audit_trail",
+  "network": "sandbox-ledger",
+  "summary": "nightly compliance checkpoint",
+  "auditTrailIds": ["trail-001", "trail-002"]
 }
 ```
 
-回應（200）：
+成功回應範例（200）：
 
 ```json
 {
   "code": "0000",
-  "msg": "告警規則已更新",
+  "msg": "區塊鏈稽核錨點寫入成功（探索）",
   "payload": {
-    "ruleId": "failed-sensitive-burst",
-    "name": "敏感失敗請求異常",
-    "ruleType": "failed_requests",
-    "enabled": true,
-    "severity": "high",
-    "threshold": 5,
-    "windowMinutes": 15,
-    "riskLevel": null,
-    "sensitiveOnly": true,
-    "updatedAtUtc": "2026-03-11T14:20:00Z"
-  }
-}
-```
-
-#### 2) `POST /api/compliance/alerts/rules/query`
-
-請求：
-
-```json
-{
-  "enabled": true,
-  "ruleType": "failed_requests",
-  "page": 1,
-  "pageSize": 20
-}
-```
-
-回應（200）：
-
-```json
-{
-  "code": "0000",
-  "msg": "查詢成功",
-  "payload": {
-    "total": 2,
-    "page": 1,
-    "pageSize": 20,
-    "rules": [
-      {
-        "ruleId": "failed-sensitive-burst",
-        "name": "敏感失敗請求異常",
-        "ruleType": "failed_requests",
-        "enabled": true,
-        "severity": "high",
-        "threshold": 5,
-        "windowMinutes": 15,
-        "riskLevel": null,
-        "sensitiveOnly": true,
-        "updatedAtUtc": "2026-03-11T14:20:00Z"
-      }
-    ]
-  }
-}
-```
-
-#### 3) `POST /api/compliance/alerts/evaluate`
-
-請求（使用 request-level `windowMinutes` override，並回傳每規則前 3 名觸發主體）：
-
-```json
-{
-  "windowMinutes": 30,
-  "topSubjects": 3,
-  "notifyChannels": ["in-app", "email"]
-}
-```
-
-回應（200）：
-
-```json
-{
-  "code": "0000",
-  "msg": "告警評估完成",
-  "payload": {
-    "evaluatedAtUtc": "2026-03-11T14:25:00Z",
-    "evaluatedRules": 3,
-    "triggeredAlerts": 1,
-    "alerts": [
-      {
-        "alertId": "alert-20260311142500-7f3f6ef5",
-        "ruleId": "failed-sensitive-burst",
-        "ruleName": "敏感失敗請求異常",
-        "severity": "high",
-        "severityScore": 80,
-        "triggeredAtUtc": "2026-03-11T14:25:00Z",
-        "windowMinutes": 30,
-        "triggerCount": 8,
-        "subject": "alice",
-        "topSubjects": [
-          { "subject": "alice", "triggerCount": 8, "topPaths": ["/api/declare(5)", "/api/keys/import(3)"] },
-          { "subject": "bob", "triggerCount": 6, "topPaths": ["/api/declare(6)"] }
-        ],
-        "suggestedAction": "通知合規人員檢查登入與操作紀錄",
-        "triggerDetails": [
-          "primaryUser=alice",
-          "primaryCount=8",
-          "triggeredSubjects=2",
-          "windowMinutes=30",
-          "sensitiveOnly=true",
-          "topSubjects=alice:8;bob:6"
-        ],
-        "notifyChannels": ["in-app", "email"]
-      }
-    ]
-  }
-}
-```
-
-#### 4) `POST /api/compliance/alerts/query`
-
-請求：
-
-```json
-{
-  "severity": "high",
-  "fromTriggeredAtUtc": "2026-03-11T00:00:00Z",
-  "toTriggeredAtUtc": "2026-03-11T23:59:59Z",
-  "page": 1,
-  "pageSize": 20
-}
-```
-
-回應（200）：
-
-```json
-{
-  "code": "0000",
-  "msg": "查詢成功",
-  "payload": {
-    "total": 1,
-    "page": 1,
-    "pageSize": 20,
-    "alerts": [
-      {
-        "alertId": "alert-20260311142500-7f3f6ef5",
-        "ruleId": "failed-sensitive-burst",
-        "ruleName": "敏感失敗請求異常",
-        "severity": "high",
-        "severityScore": 80,
-        "triggeredAtUtc": "2026-03-11T14:25:00Z",
-        "windowMinutes": 30,
-        "triggerCount": 8,
-        "subject": "alice",
-        "topSubjects": [
-          { "subject": "alice", "triggerCount": 8, "topPaths": ["/api/declare(5)", "/api/keys/import(3)"] }
-        ],
-        "suggestedAction": "通知合規人員檢查登入與操作紀錄",
-        "triggerDetails": ["primaryUser=alice", "primaryCount=8"],
-        "notifyChannels": ["in-app", "email"]
-      }
-    ]
+    "anchorId": "anchor-20260312090000-9eaf2a6f3cbf",
+    "anchorType": "audit_trail",
+    "network": "sandbox-ledger",
+    "anchorHash": "...",
+    "previousAnchorHash": "..."
   }
 }
 ```

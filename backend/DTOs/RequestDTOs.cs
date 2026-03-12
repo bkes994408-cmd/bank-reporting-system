@@ -321,7 +321,6 @@ public class ComplianceAlertRulesQueryRequest
 public class ComplianceAlertEvaluateRequest
 {
     public int? WindowMinutes { get; set; }
-    public int? TopSubjects { get; set; }
     public List<string>? NotifyChannels { get; set; }
 }
 
@@ -336,4 +335,42 @@ public class ComplianceAlertQueryRequest
     public DateTime? ToTriggeredAtUtc { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
+/// 區塊鏈稽核錨點寫入請求（探索）
+/// </summary>
+public class BlockchainAuditAnchorCommitRequest
+{
+    public string AnchorType { get; set; } = "audit_trail";
+    public string Network { get; set; } = "sandbox-ledger";
+    public string? PayloadHash { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public List<string>? AuditTrailIds { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
+}
+
+/// <summary>
+/// 區塊鏈稽核錨點查詢請求（探索）
+/// </summary>
+public class BlockchainAuditAnchorQueryRequest
+{
+    public string? AnchorType { get; set; }
+    public string? Network { get; set; }
+    public DateTime? FromCreatedAtUtc { get; set; }
+    public DateTime? ToCreatedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
+/// 區塊鏈資料共享模擬請求（探索）
+/// </summary>
+public class BlockchainDataSharingSimulationRequest
+{
+    public string SourceInstitution { get; set; } = string.Empty;
+    public string TargetInstitution { get; set; } = string.Empty;
+    public string? Regulator { get; set; }
+    public string? Purpose { get; set; }
+    public List<string>? Fields { get; set; }
 }
