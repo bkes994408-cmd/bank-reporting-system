@@ -170,22 +170,26 @@ public class ComplianceAlertService : IComplianceAlertService
 
     private ComplianceAlertRecord? EvaluateRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
     {
+        var candidateRecords = rule.SensitiveOnly
+            ? records.Where(x => x.IsSensitiveOperation).ToList()
+            : records;
+
         IEnumerable<IGrouping<string, AuditTrailRecord>> grouped = Enumerable.Empty<IGrouping<string, AuditTrailRecord>>();
 
         switch (rule.RuleType)
         {
             case "failed_requests":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => x.StatusCode >= 400)
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;
             case "high_risk_operations":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => string.Equals(x.RiskLevel, rule.RiskLevel ?? "high", StringComparison.OrdinalIgnoreCase))
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;
             case "off_hours_sensitive":
-                grouped = records
+                grouped = candidateRecords
                     .Where(x => x.IsSensitiveOperation && (x.TimestampUtc.Hour < 6 || x.TimestampUtc.Hour >= 22))
                     .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
                 break;

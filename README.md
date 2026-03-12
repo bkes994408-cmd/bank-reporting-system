@@ -271,12 +271,6 @@ docker compose down
 
 ### `/api/compliance/blockchain/anchors/commit` 契約（MVP-6 探索）
 
-> ⚠️ **PoC 限制說明（重要）**
-> - 本功能為探索性 PoC，僅用於驗證流程，不可視為正式鏈上稽核解決方案。
-> - 錨點資料目前儲存在 API 服務記憶體中，服務重啟後資料會遺失。
-> - 未導入分散式共識機制，亦不提供真正不可竄改（tamper-proof）保證。
-> - 生產環境請改用具備持久化、共識與節點治理能力的正式區塊鏈/分散式帳本架構。
-
 - Content-Type: `application/json`
 - 必填欄位：無（會使用預設值）
 - 常用欄位：
@@ -311,6 +305,59 @@ docker compose down
   }
 }
 ```
+
+### `/api/compliance/audit-trails/behavior-insights` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 常用欄位：
+  - `startDateUtc` / `endDateUtc`（可選，預設近 7 天）
+  - `topUsers`（預設 5，範圍 1~20）
+  - `topPaths`（預設 8，範圍 1~20）
+
+請求範例：
+
+```json
+{
+  "startDateUtc": "2026-03-10T00:00:00Z",
+  "endDateUtc": "2026-03-12T00:00:00Z",
+  "topUsers": 5,
+  "topPaths": 8
+}
+```
+
+### `/api/compliance/audit-trails/trace` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 欄位：
+  - `traceId`（可選，指定單一追溯鏈路）
+  - `user`（可選，篩選使用者）
+  - `startDateUtc` / `endDateUtc`（可選）
+  - `maxSteps`（預設 20，範圍 1~200）
+
+請求範例：
+
+```json
+{
+  "traceId": "trace-20260312091500-abc123",
+  "maxSteps": 50
+}
+```
+
+### `/api/compliance/audit-trails/query` 進階查詢欄位（MVP-6）
+
+新增可選欄位：
+
+- `sensitiveOnly`：僅回傳敏感操作
+- `minStatusCode` / `maxStatusCode`：依 HTTP status code 範圍篩選
+- `minDurationMs`：依最小耗時篩選
+
+### `/api/compliance/alerts/rules` 重要欄位說明
+
+- `ruleType` 支援：`failed_requests`、`high_risk_operations`、`off_hours_sensitive`
+- `sensitiveOnly` 行為：
+  - `true`：先篩選 `isSensitiveOperation=true` 的稽核紀錄，再套用規則條件
+  - `false`：對所有稽核紀錄套用規則條件
+- 因此 `failed_requests` 與 `high_risk_operations` 在 `sensitiveOnly=true` 時，只會以敏感操作計算觸發門檻。
 
 ### `ExternalComplianceData:Providers` 設定範例
 

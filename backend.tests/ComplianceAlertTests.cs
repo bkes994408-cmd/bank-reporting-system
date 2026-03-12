@@ -49,6 +49,105 @@ public class ComplianceAlertServiceTests
         Assert.Contains(result.Alerts, x => x.RuleId == "test-failed-requests");
         Assert.Contains(result.Alerts.SelectMany(x => x.NotifyChannels), x => x == "email");
     }
+
+    [Fact]
+    public void Evaluate_FailedRequestsSensitiveOnly_IgnoresNonSensitiveRecords()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-failed-requests",
+            Name = "僅敏感失敗請求",
+            RuleType = "failed_requests",
+            Enabled = true,
+            Severity = "high",
+            Threshold = 2,
+            WindowMinutes = 30,
+            SensitiveOnly = true
+        });
+
+        for (var i = 0; i < 3; i++)
+        {
+            auditService.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddMinutes(-2),
+                User = "bob",
+                Method = "POST",
+                Path = "/api/declare",
+                StatusCode = 500,
+                IsSensitiveOperation = false,
+                RiskLevel = "high"
+            });
+        }
+
+        var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
+
+        Assert.DoesNotContain(result.Alerts, x => x.RuleId == "sensitive-failed-requests");
+    }
+
+    [Fact]
+    public void Evaluate_HighRiskSensitiveOnly_TriggersOnlyFromSensitiveRecords()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "sensitive-high-risk",
+            Name = "僅敏感高風險操作",
+            RuleType = "high_risk_operations",
+            Enabled = true,
+            Severity = "critical",
+            Threshold = 2,
+            WindowMinutes = 30,
+            RiskLevel = "high",
+            SensitiveOnly = true
+        });
+
+        for (var i = 0; i < 2; i++)
+        {
+            auditService.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddMinutes(-2),
+                User = "carol",
+                Method = "POST",
+                Path = "/api/transfer",
+                StatusCode = 200,
+                IsSensitiveOperation = false,
+                RiskLevel = "high"
+            });
+        }
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "carol",
+            Method = "POST",
+            Path = "/api/transfer",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var withoutThreshold = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.DoesNotContain(withoutThreshold.Alerts, x => x.RuleId == "sensitive-high-risk");
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            User = "carol",
+            Method = "POST",
+            Path = "/api/transfer",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+
+        var withThreshold = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.Contains(withThreshold.Alerts, x => x.RuleId == "sensitive-high-risk");
+    }
 }
 
 public class ComplianceAlertsControllerTests

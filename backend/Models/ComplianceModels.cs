@@ -49,6 +49,58 @@ public class AuditTrailQueryPayload
     public List<AuditTrailRecord> Records { get; set; } = new();
 }
 
+public class AuditBehaviorUserSummary
+{
+    public string User { get; set; } = string.Empty;
+    public int RequestCount { get; set; }
+    public int FailureCount { get; set; }
+    public int SensitiveCount { get; set; }
+    public long AvgDurationMs { get; set; }
+}
+
+public class AuditBehaviorPathSummary
+{
+    public string PathKey { get; set; } = string.Empty;
+    public int RequestCount { get; set; }
+    public int FailureCount { get; set; }
+    public long AvgDurationMs { get; set; }
+}
+
+public class AuditBehaviorInsightsPayload
+{
+    public DateTime GeneratedAtUtc { get; set; }
+    public DateTime StartDateUtc { get; set; }
+    public DateTime EndDateUtc { get; set; }
+    public int TotalRecords { get; set; }
+    public int UniqueUsers { get; set; }
+    public int SensitiveOperations { get; set; }
+    public List<AuditBehaviorUserSummary> TopActiveUsers { get; set; } = new();
+    public List<AuditBehaviorPathSummary> TopPaths { get; set; } = new();
+    public List<string> OptimizationSuggestions { get; set; } = new();
+}
+
+public class AuditTrailTraceStep
+{
+    public DateTime TimestampUtc { get; set; }
+    public string TraceId { get; set; } = string.Empty;
+    public string User { get; set; } = string.Empty;
+    public string Method { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public int StatusCode { get; set; }
+    public long DurationMs { get; set; }
+    public string RiskLevel { get; set; } = "low";
+}
+
+public class AuditTrailTracePayload
+{
+    public string TraceId { get; set; } = string.Empty;
+    public string User { get; set; } = string.Empty;
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+    public int TotalSteps { get; set; }
+    public List<AuditTrailTraceStep> Steps { get; set; } = new();
+}
+
 public class RegulationDocumentSnapshot
 {
     public string SnapshotId { get; set; } = Guid.NewGuid().ToString("N");

@@ -108,7 +108,9 @@ public class ComplianceControllerTests
             Path = "/api/admin/users",
             Method = "GET",
             StatusCode = 200,
-            RiskLevel = "medium"
+            RiskLevel = "medium",
+            IsSensitiveOperation = true,
+            DurationMs = 1200
         });
 
         var alertService = new ComplianceAlertService(auditService);
@@ -117,12 +119,135 @@ public class ComplianceControllerTests
         {
             User = " alice ",
             Path = " /api/admin ",
-            RiskLevel = " medium "
+            RiskLevel = " medium ",
+            SensitiveOnly = true,
+            MinStatusCode = 200,
+            MaxStatusCode = 299,
+            MinDurationMs = 1000
         });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ApiResponse<AuditTrailQueryPayload>>(ok.Value);
         Assert.Single(payload.Payload!.Records);
+    }
+
+    [Fact]
+    public void GetAuditBehaviorInsights_ReturnsTopUsersAndSuggestions()
+    {
+        var auditService = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-3),
+            User = "alice",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 500,
+            DurationMs = 2500,
+            IsSensitiveOperation = true,
+            RiskLevel = "high"
+        });
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-2),
+            User = "alice",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            DurationMs = 2200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-1),
+            User = "bob",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 100,
+            IsSensitiveOperation = false,
+            RiskLevel = "low"
+        });
+
+        var payload = auditService.GetBehaviorInsights(new AuditBehaviorInsightsRequest
+        {
+            StartDateUtc = now.AddHours(-1),
+            EndDateUtc = now,
+            TopUsers = 2,
+            TopPaths = 2
+        });
+
+        Assert.Equal(3, payload.TotalRecords);
+        Assert.Equal("alice", payload.TopActiveUsers.First().User);
+        Assert.NotEmpty(payload.OptimizationSuggestions);
+    }
+
+    [Fact]
+    public void QueryAuditTrailTrace_ReturnsOrderedStepsByTraceId()
+    {
+        var auditService = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-5),
+            TraceId = "trace-001",
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 120
+        });
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-4),
+            TraceId = "trace-001",
+            User = "alice",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 202,
+            DurationMs = 340
+        });
+
+        var payload = auditService.QueryTrace(new AuditTrailTraceRequest
+        {
+            TraceId = "trace-001",
+            MaxSteps = 10
+        });
+
+        Assert.Equal(2, payload.TotalSteps);
+        Assert.True(payload.Steps[0].TimestampUtc <= payload.Steps[1].TimestampUtc);
+        Assert.All(payload.Steps, step => Assert.Equal("trace-001", step.TraceId));
+    }
+
+    [Fact]
+    public void QueryAuditTrailTrace_TrimsInput()
+    {
+        var auditService = new ComplianceAuditService();
+        var regulationService = new RegulationMonitoringService();
+        var now = DateTime.UtcNow;
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now,
+            TraceId = "trace-abc",
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200
+        });
+
+        var alertService = new ComplianceAlertService(auditService);
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new BlockchainComplianceService());
+        var result = controller.QueryAuditTrailTrace(new AuditTrailTraceRequest
+        {
+            TraceId = " trace-abc ",
+            User = " alice ",
+            MaxSteps = 10
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ApiResponse<AuditTrailTracePayload>>(ok.Value);
+        Assert.Single(payload.Payload!.Steps);
     }
 
     [Fact]

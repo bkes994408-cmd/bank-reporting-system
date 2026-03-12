@@ -75,6 +75,10 @@ public class ComplianceController : ControllerBase
             User = request.User?.Trim(),
             Path = request.Path?.Trim(),
             RiskLevel = request.RiskLevel?.Trim(),
+            SensitiveOnly = request.SensitiveOnly,
+            MinStatusCode = request.MinStatusCode,
+            MaxStatusCode = request.MaxStatusCode,
+            MinDurationMs = request.MinDurationMs,
             StartDateUtc = request.StartDateUtc,
             EndDateUtc = request.EndDateUtc,
             Page = request.Page,
@@ -83,6 +87,47 @@ public class ComplianceController : ControllerBase
 
         var result = _complianceAuditService.QueryTrails(sanitized);
         return Ok(new ApiResponse<AuditTrailQueryPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("audit-trails/behavior-insights")]
+    public IActionResult GetAuditBehaviorInsights([FromBody] AuditBehaviorInsightsRequest request)
+    {
+        var sanitized = new AuditBehaviorInsightsRequest
+        {
+            StartDateUtc = request.StartDateUtc,
+            EndDateUtc = request.EndDateUtc,
+            TopUsers = request.TopUsers,
+            TopPaths = request.TopPaths
+        };
+
+        var result = _complianceAuditService.GetBehaviorInsights(sanitized);
+        return Ok(new ApiResponse<AuditBehaviorInsightsPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("audit-trails/trace")]
+    public IActionResult QueryAuditTrailTrace([FromBody] AuditTrailTraceRequest request)
+    {
+        var sanitized = new AuditTrailTraceRequest
+        {
+            TraceId = request.TraceId?.Trim(),
+            User = request.User?.Trim(),
+            StartDateUtc = request.StartDateUtc,
+            EndDateUtc = request.EndDateUtc,
+            MaxSteps = request.MaxSteps
+        };
+
+        var result = _complianceAuditService.QueryTrace(sanitized);
+        return Ok(new ApiResponse<AuditTrailTracePayload>
         {
             Code = "0000",
             Msg = "查詢成功",
@@ -321,24 +366,13 @@ public class ComplianceController : ControllerBase
             Metadata = request.Metadata
         };
 
-        try
+        var result = _blockchainComplianceService.CommitAuditAnchor(sanitized);
+        return Ok(new ApiResponse<BlockchainAuditAnchorRecord>
         {
-            var result = _blockchainComplianceService.CommitAuditAnchor(sanitized);
-            return Ok(new ApiResponse<BlockchainAuditAnchorRecord>
-            {
-                Code = "0000",
-                Msg = "區塊鏈稽核錨點寫入成功（探索）",
-                Payload = result
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Code = "COMPLIANCE_4006",
-                Msg = ex.Message
-            });
-        }
+            Code = "0000",
+            Msg = "區塊鏈稽核錨點寫入成功（探索）",
+            Payload = result
+        });
     }
 
     [HttpPost("blockchain/anchors/query")]
