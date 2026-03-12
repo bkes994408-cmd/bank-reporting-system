@@ -226,10 +226,37 @@ public class AuditTrailQueryRequest
     public string? User { get; set; }
     public string? Path { get; set; }
     public string? RiskLevel { get; set; }
+    public bool? SensitiveOnly { get; set; }
+    public int? MinStatusCode { get; set; }
+    public int? MaxStatusCode { get; set; }
+    public long? MinDurationMs { get; set; }
     public DateTime? StartDateUtc { get; set; }
     public DateTime? EndDateUtc { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
+}
+
+/// <summary>
+/// 使用者行為分析查詢請求
+/// </summary>
+public class AuditBehaviorInsightsRequest
+{
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+    public int TopUsers { get; set; } = 5;
+    public int TopPaths { get; set; } = 8;
+}
+
+/// <summary>
+/// 稽核追溯路徑查詢請求
+/// </summary>
+public class AuditTrailTraceRequest
+{
+    public string? TraceId { get; set; }
+    public string? User { get; set; }
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+    public int MaxSteps { get; set; } = 20;
 }
 
 /// <summary>

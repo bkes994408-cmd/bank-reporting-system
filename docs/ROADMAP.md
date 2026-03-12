@@ -69,7 +69,7 @@
     *   基於區塊鏈的數據共享方案：研究如何在保護隱私的前提下，利用區塊鏈技術實現銀行間或監管機構與銀行之間的安全、高效數據共享。
     *   難點：區塊鏈技術在金融領域的合規性與監管接受度，性能與擴展性問題。
 
-*   [ ] 用戶行為分析與稽核追溯優化
+*   [x] 用戶行為分析與稽核追溯優化
     *   增強用戶操作日誌詳盡度：細化記錄系統中所有用戶的操作行為，包括登錄、數據查詢、數據修改、報告生成等，提供更豐富的稽核數據。
     *   可視化稽核追溯路徑：開發直觀的圖形化界面，允許合規人員快速追溯任何數據變動或報告生成的完整鏈路，快速定位問題源頭和責任人。
     *   行為分析與審計效率優化：引入行為分析工具，識別合規流程中的瓶頸或重複性操作，提供優化建議，提升稽核效率與準確性。
@@ -89,6 +89,7 @@
 - 完成 MVP-6 項目「與外部合規平台/數據源集成」：新增外部合規數據源同步與風險名單比對能力，支援欄位映射標準化與風險決策建議 API（`/api/compliance/external-data/sync`、`/api/compliance/external-data/screen`）。
 - 完成 MVP-6 項目「預警與異常行為檢測」：新增可配置告警規則、告警評估與查詢能力，提供 API（`/api/compliance/alerts/rules/upsert`、`/api/compliance/alerts/rules/query`、`/api/compliance/alerts/evaluate`、`/api/compliance/alerts/query`），支援失敗請求突增/高風險操作/夜間敏感操作異常檢測與建議處置。
 - 完成 MVP-6 可選項「區塊鏈技術應用探索」：新增稽核錨點寫入/查詢與跨機構共享方案模擬 API（`/api/compliance/blockchain/anchors/commit`、`/api/compliance/blockchain/anchors/query`、`/api/compliance/blockchain/sharing/simulate`），支援 hash-chain 溯源與共享風險策略建議。
+- 完成 MVP-6 項目「用戶行為分析與稽核追溯優化」：擴充稽核軌跡查詢條件（敏感操作、狀態碼、耗時），新增行為洞察 API（`/api/compliance/audit-trails/behavior-insights`）與追溯路徑 API（`/api/compliance/audit-trails/trace`），提供 Top users/paths 與優化建議。
 - 完成效能基準與 request-path 優化（`docs/PERFORMANCE.md` + middleware 重構，PR #52）。
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。

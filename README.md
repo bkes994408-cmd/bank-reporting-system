@@ -306,6 +306,51 @@ docker compose down
 }
 ```
 
+### `/api/compliance/audit-trails/behavior-insights` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 常用欄位：
+  - `startDateUtc` / `endDateUtc`（可選，預設近 7 天）
+  - `topUsers`（預設 5，範圍 1~20）
+  - `topPaths`（預設 8，範圍 1~20）
+
+請求範例：
+
+```json
+{
+  "startDateUtc": "2026-03-10T00:00:00Z",
+  "endDateUtc": "2026-03-12T00:00:00Z",
+  "topUsers": 5,
+  "topPaths": 8
+}
+```
+
+### `/api/compliance/audit-trails/trace` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 欄位：
+  - `traceId`（可選，指定單一追溯鏈路）
+  - `user`（可選，篩選使用者）
+  - `startDateUtc` / `endDateUtc`（可選）
+  - `maxSteps`（預設 20，範圍 1~200）
+
+請求範例：
+
+```json
+{
+  "traceId": "trace-20260312091500-abc123",
+  "maxSteps": 50
+}
+```
+
+### `/api/compliance/audit-trails/query` 進階查詢欄位（MVP-6）
+
+新增可選欄位：
+
+- `sensitiveOnly`：僅回傳敏感操作
+- `minStatusCode` / `maxStatusCode`：依 HTTP status code 範圍篩選
+- `minDurationMs`：依最小耗時篩選
+
 ### `ExternalComplianceData:Providers` 設定範例
 
 在 `backend/appsettings.json` 可設定多個資料源：
