@@ -94,3 +94,9 @@
 - 完成技術債清理：移除未使用 legacy `AccountAdminService`（PR #53）。
 - 完成 MVP-4 規劃與 RBAC hardening：新增 `docs/NEXT-ITERATION-PLAN.md`、`docs/RBAC-MATRIX.md`、operator route guard（PR #54, #55）。
 - 完成「根據使用者回饋或市場新需求，分析並規劃新的功能迭代」：新增 `docs/FEATURE-ITERATION-ANALYSIS.md`（本 PR）。
+
+### Iteration-1（MVP-7：預測性合規與自動化決策）
+- [x] 預測性合規風險評估：基於歷史稽核資料與外部法規更新，預測潛在合規風險並提供預警（`/api/compliance/predictive-risk/assess`、`/api/compliance/predictive-risk/query`）。
+- [ ] 智能報表自動生成與提交：實現部分標準化報表的完全自動化生成與提交給監管機構。
+- [ ] 外部數據源擴展：整合更多元、實時的金融數據源，提升風險評估的準確性。
+- [ ] 區塊鏈合規證明自動化：將關鍵合規證明自動上鏈，簡化審計流程並提升數據公信力。
