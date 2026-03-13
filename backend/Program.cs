@@ -44,6 +44,7 @@ builder.Services.AddSingleton<IExternalComplianceDataService, ExternalCompliance
 builder.Services.AddSingleton<IComplianceAlertService, ComplianceAlertService>();
 builder.Services.AddSingleton<IPredictiveComplianceRiskService, PredictiveComplianceRiskService>();
 builder.Services.AddSingleton<IBlockchainComplianceService, BlockchainComplianceService>();
+builder.Services.AddSingleton<IIntelligentReportAutomationService, IntelligentReportAutomationService>();
 builder.Services.AddSingleton<IEncryptedExportArchiveService, EncryptedExportArchiveService>();
 
 var app = builder.Build();
