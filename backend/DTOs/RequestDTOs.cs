@@ -365,6 +365,30 @@ public class ComplianceAlertQueryRequest
 }
 
 /// <summary>
+/// 預測性合規風險評估請求
+/// </summary>
+public class PredictiveComplianceRiskAssessRequest
+{
+    public int LookbackDays { get; set; } = 30;
+    public int ForecastDays { get; set; } = 14;
+    public string? Source { get; set; }
+    public string? DocumentCode { get; set; }
+    public List<string>? FocusAreas { get; set; }
+}
+
+/// <summary>
+/// 預測性合規風險查詢請求
+/// </summary>
+public class PredictiveComplianceRiskQueryRequest
+{
+    public string? RiskLevel { get; set; }
+    public DateTime? FromGeneratedAtUtc { get; set; }
+    public DateTime? ToGeneratedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
 /// 區塊鏈稽核錨點寫入請求（探索）
 /// </summary>
 public class BlockchainAuditAnchorCommitRequest

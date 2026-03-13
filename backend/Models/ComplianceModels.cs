@@ -260,6 +260,36 @@ public class ComplianceAlertQueryPayload
     public List<ComplianceAlertRecord> Alerts { get; set; } = new();
 }
 
+public class PredictiveComplianceRiskFactor
+{
+    public string FactorKey { get; set; } = string.Empty;
+    public string FactorName { get; set; } = string.Empty;
+    public double Score { get; set; }
+    public string Evidence { get; set; } = string.Empty;
+}
+
+public class PredictiveComplianceRiskReport
+{
+    public string AssessmentId { get; set; } = string.Empty;
+    public DateTime GeneratedAtUtc { get; set; }
+    public int LookbackDays { get; set; }
+    public int ForecastDays { get; set; }
+    public string PredictedRiskLevel { get; set; } = "low";
+    public int RiskScore { get; set; }
+    public int ConfidenceScore { get; set; }
+    public List<PredictiveComplianceRiskFactor> Factors { get; set; } = new();
+    public List<string> EarlyWarnings { get; set; } = new();
+    public List<string> RecommendedActions { get; set; } = new();
+}
+
+public class PredictiveComplianceRiskQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<PredictiveComplianceRiskReport> Reports { get; set; } = new();
+}
+
 public class BlockchainAuditAnchorRecord
 {
     public string AnchorId { get; set; } = string.Empty;

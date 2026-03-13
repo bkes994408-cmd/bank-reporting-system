@@ -13,6 +13,7 @@ public class ComplianceController : ControllerBase
     private readonly IRegulationMonitoringService _regulationMonitoringService;
     private readonly IExternalComplianceDataService _externalComplianceDataService;
     private readonly IComplianceAlertService _complianceAlertService;
+    private readonly IPredictiveComplianceRiskService _predictiveComplianceRiskService;
     private readonly IBlockchainComplianceService _blockchainComplianceService;
 
     public ComplianceController(
@@ -20,12 +21,14 @@ public class ComplianceController : ControllerBase
         IRegulationMonitoringService regulationMonitoringService,
         IExternalComplianceDataService externalComplianceDataService,
         IComplianceAlertService complianceAlertService,
+        IPredictiveComplianceRiskService predictiveComplianceRiskService,
         IBlockchainComplianceService blockchainComplianceService)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
         _externalComplianceDataService = externalComplianceDataService;
         _complianceAlertService = complianceAlertService;
+        _predictiveComplianceRiskService = predictiveComplianceRiskService;
         _blockchainComplianceService = blockchainComplianceService;
     }
 
@@ -346,6 +349,52 @@ public class ComplianceController : ControllerBase
 
         var result = _complianceAlertService.QueryAlerts(sanitized);
         return Ok(new ApiResponse<ComplianceAlertQueryPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("predictive-risk/assess")]
+    public IActionResult AssessPredictiveRisk([FromBody] PredictiveComplianceRiskAssessRequest request)
+    {
+        var sanitized = new PredictiveComplianceRiskAssessRequest
+        {
+            LookbackDays = request.LookbackDays,
+            ForecastDays = request.ForecastDays,
+            Source = request.Source?.Trim(),
+            DocumentCode = request.DocumentCode?.Trim(),
+            FocusAreas = request.FocusAreas?
+                .Select(x => x?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Cast<string>()
+                .ToList()
+        };
+
+        var result = _predictiveComplianceRiskService.Assess(sanitized);
+        return Ok(new ApiResponse<PredictiveComplianceRiskReport>
+        {
+            Code = "0000",
+            Msg = "預測性合規風險評估完成",
+            Payload = result
+        });
+    }
+
+    [HttpPost("predictive-risk/query")]
+    public IActionResult QueryPredictiveRisk([FromBody] PredictiveComplianceRiskQueryRequest request)
+    {
+        var sanitized = new PredictiveComplianceRiskQueryRequest
+        {
+            RiskLevel = request.RiskLevel?.Trim(),
+            FromGeneratedAtUtc = request.FromGeneratedAtUtc,
+            ToGeneratedAtUtc = request.ToGeneratedAtUtc,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _predictiveComplianceRiskService.Query(sanitized);
+        return Ok(new ApiResponse<PredictiveComplianceRiskQueryPayload>
         {
             Code = "0000",
             Msg = "查詢成功",

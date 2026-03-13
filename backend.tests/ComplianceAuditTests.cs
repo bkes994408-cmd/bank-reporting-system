@@ -89,7 +89,7 @@ public class ComplianceControllerTests
         var auditService = new ComplianceAuditService();
         var regulationService = new RegulationMonitoringService();
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new BlockchainComplianceService());
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new PredictiveComplianceRiskService(auditService, regulationService), new BlockchainComplianceService());
 
         var result = await controller.GenerateAuditReport(new ComplianceAuditReportGenerateRequest());
 
@@ -114,7 +114,7 @@ public class ComplianceControllerTests
         });
 
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new BlockchainComplianceService());
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new PredictiveComplianceRiskService(auditService, regulationService), new BlockchainComplianceService());
         var result = controller.QueryAuditTrails(new AuditTrailQueryRequest
         {
             User = " alice ",
@@ -237,7 +237,7 @@ public class ComplianceControllerTests
         });
 
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new BlockchainComplianceService());
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new PredictiveComplianceRiskService(auditService, regulationService), new BlockchainComplianceService());
         var result = controller.QueryAuditTrailTrace(new AuditTrailTraceRequest
         {
             TraceId = " trace-abc ",
@@ -264,7 +264,7 @@ public class ComplianceControllerTests
         });
 
         var alertService = new ComplianceAlertService(auditService);
-        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new BlockchainComplianceService());
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new PredictiveComplianceRiskService(auditService, regulationService), new BlockchainComplianceService());
         var result = await controller.GenerateRegulationImpactAnalysis(new RegulationImpactAnalysisRequest
         {
             Source = "FSC",

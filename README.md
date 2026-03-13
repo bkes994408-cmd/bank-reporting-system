@@ -166,6 +166,8 @@ docker compose down
 | POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/compliance/external-data/sync` | 同步外部合規平台風險數據（制裁/PEP 等） |
 | POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
+| POST | `/api/compliance/predictive-risk/assess` | 生成預測性合規風險評估（Iteration-1） |
+| POST | `/api/compliance/predictive-risk/query` | 查詢預測性合規風險評估結果 |
 | POST | `/api/compliance/blockchain/anchors/commit` | 寫入區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/anchors/query` | 查詢區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/sharing/simulate` | 模擬區塊鏈資料共享方案（探索） |
