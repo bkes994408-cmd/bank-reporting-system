@@ -323,3 +323,29 @@ public class BlockchainDataSharingSimulationResult
     public List<string> PolicyViolations { get; set; } = new();
     public List<string> SuggestedNextActions { get; set; } = new();
 }
+
+public class IntelligentReportSubmissionRecord
+{
+    public string AutomationId { get; set; } = string.Empty;
+    public DateTime GeneratedAtUtc { get; set; }
+    public string BankCode { get; set; } = string.Empty;
+    public string BankName { get; set; } = string.Empty;
+    public string ReportYear { get; set; } = string.Empty;
+    public string ReportMonth { get; set; } = string.Empty;
+    public string ReportId { get; set; } = string.Empty;
+    public string Status { get; set; } = "generated"; // generated|submitted|failed|dry-run
+    public bool DryRun { get; set; }
+    public object StandardizedReport { get; set; } = new();
+    public string? RequestId { get; set; }
+    public string? SubmissionCode { get; set; }
+    public string? SubmissionMessage { get; set; }
+    public List<string> ValidationWarnings { get; set; } = new();
+}
+
+public class IntelligentReportSubmissionQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<IntelligentReportSubmissionRecord> Records { get; set; } = new();
+}

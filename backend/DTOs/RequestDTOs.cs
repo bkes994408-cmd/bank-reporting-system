@@ -389,6 +389,39 @@ public class PredictiveComplianceRiskQueryRequest
 }
 
 /// <summary>
+/// 智能報表自動生成與提交請求
+/// </summary>
+public class IntelligentReportAutoSubmitRequest
+{
+    public string BankCode { get; set; } = string.Empty;
+    public string BankName { get; set; } = string.Empty;
+    public string ReportYear { get; set; } = string.Empty;
+    public string ReportMonth { get; set; } = string.Empty;
+    public string ReportId { get; set; } = string.Empty;
+    public string ContractorName { get; set; } = string.Empty;
+    public string ContractorTel { get; set; } = string.Empty;
+    public string ContractorEmail { get; set; } = string.Empty;
+    public string ManagerName { get; set; } = string.Empty;
+    public string ManagerTel { get; set; } = string.Empty;
+    public string ManagerEmail { get; set; } = string.Empty;
+    public bool DryRun { get; set; }
+    public Dictionary<string, object>? SourceData { get; set; }
+}
+
+/// <summary>
+/// 智能報表自動提交紀錄查詢請求
+/// </summary>
+public class IntelligentReportSubmissionQueryRequest
+{
+    public string? ReportId { get; set; }
+    public string? Status { get; set; }
+    public DateTime? FromGeneratedAtUtc { get; set; }
+    public DateTime? ToGeneratedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
 /// 區塊鏈稽核錨點寫入請求（探索）
 /// </summary>
 public class BlockchainAuditAnchorCommitRequest

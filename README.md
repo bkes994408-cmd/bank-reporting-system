@@ -168,6 +168,8 @@ docker compose down
 | POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
 | POST | `/api/compliance/predictive-risk/assess` | 生成預測性合規風險評估（Iteration-1） |
 | POST | `/api/compliance/predictive-risk/query` | 查詢預測性合規風險評估結果 |
+| POST | `/api/compliance/intelligent-reports/auto-submit` | 自動生成標準化報表並提交監管機構（支援 dry-run） |
+| POST | `/api/compliance/intelligent-reports/query` | 查詢智能報表自動提交紀錄 |
 | POST | `/api/compliance/blockchain/anchors/commit` | 寫入區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/anchors/query` | 查詢區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/sharing/simulate` | 模擬區塊鏈資料共享方案（探索） |
