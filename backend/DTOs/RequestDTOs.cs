@@ -389,6 +389,32 @@ public class PredictiveComplianceRiskQueryRequest
 }
 
 /// <summary>
+/// 外部金融市場數據寫入請求
+/// </summary>
+public class FinancialMarketSnapshotUpsertRequest
+{
+    public string SourceName { get; set; } = string.Empty;
+    public DateTime? CapturedAtUtc { get; set; }
+    public double VolatilityIndex { get; set; }
+    public double CreditSpreadBps { get; set; }
+    public double FxVolatilityPercent { get; set; }
+    public string LiquidityStressLevel { get; set; } = "low";
+    public Dictionary<string, string>? Metadata { get; set; }
+}
+
+/// <summary>
+/// 外部金融市場數據查詢請求
+/// </summary>
+public class FinancialMarketSnapshotQueryRequest
+{
+    public string? SourceName { get; set; }
+    public DateTime? FromCapturedAtUtc { get; set; }
+    public DateTime? ToCapturedAtUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+/// <summary>
 /// 智能報表自動生成與提交請求
 /// </summary>
 public class IntelligentReportAutoSubmitRequest

@@ -166,6 +166,8 @@ docker compose down
 | POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/compliance/external-data/sync` | 同步外部合規平台風險數據（制裁/PEP 等） |
 | POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
+| POST | `/api/compliance/financial-data/snapshots/upsert` | 寫入外部即時金融市場快照（MVP-7） |
+| POST | `/api/compliance/financial-data/snapshots/query` | 查詢外部即時金融市場快照（MVP-7） |
 | POST | `/api/compliance/predictive-risk/assess` | 生成預測性合規風險評估（Iteration-1） |
 | POST | `/api/compliance/predictive-risk/query` | 查詢預測性合規風險評估結果 |
 | POST | `/api/compliance/intelligent-reports/auto-submit` | 自動生成標準化報表並提交監管機構（支援 dry-run） |
@@ -185,6 +187,21 @@ docker compose down
 | POST | `/api/settings` | 更新系統設定 |
 | GET | `/health` | 健康檢查（服務存活與版本） |
 | GET | `/metrics` | Prometheus 格式監控指標 |
+
+### `/api/compliance/financial-data/snapshots/upsert` 契約（MVP-7）
+
+- Request body
+  - `sourceName`: 數據源名稱（例如：`twse-realtime-feed`、`cme-market-feed`）
+  - `capturedAtUtc`: 快照時間（ISO8601，可省略，預設為伺服器當下 UTC）
+  - `volatilityIndex`: 波動率指數（例如 VIX）
+  - `creditSpreadBps`: 信用利差（bps）
+  - `fxVolatilityPercent`: 外匯波動率（%）
+  - `liquidityStressLevel`: `low|medium|high`
+  - `metadata`: 其他來源欄位（可選）
+
+- Predictive Risk 整合
+  - `predictive-risk/assess` 會自動抓取最近 24 小時內最新快照，新增 `real_time_market_stress` 因子
+  - 若 24 小時內無可用快照，評估流程會退回既有歷史稽核 + 法規變動訊號，不會報錯
 
 ### `/api/compliance/external-data/sync` 契約（MVP-6）
 

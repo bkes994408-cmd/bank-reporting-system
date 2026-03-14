@@ -13,6 +13,7 @@ public class ComplianceController : ControllerBase
     private readonly IRegulationMonitoringService _regulationMonitoringService;
     private readonly IExternalComplianceDataService _externalComplianceDataService;
     private readonly IComplianceAlertService _complianceAlertService;
+    private readonly IFinancialMarketDataService _financialMarketDataService;
     private readonly IPredictiveComplianceRiskService _predictiveComplianceRiskService;
     private readonly IBlockchainComplianceService _blockchainComplianceService;
 
@@ -22,12 +23,14 @@ public class ComplianceController : ControllerBase
         IExternalComplianceDataService externalComplianceDataService,
         IComplianceAlertService complianceAlertService,
         IPredictiveComplianceRiskService predictiveComplianceRiskService,
-        IBlockchainComplianceService blockchainComplianceService)
+        IBlockchainComplianceService blockchainComplianceService,
+        IFinancialMarketDataService? financialMarketDataService = null)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
         _externalComplianceDataService = externalComplianceDataService;
         _complianceAlertService = complianceAlertService;
+        _financialMarketDataService = financialMarketDataService ?? new FinancialMarketDataService();
         _predictiveComplianceRiskService = predictiveComplianceRiskService;
         _blockchainComplianceService = blockchainComplianceService;
     }
@@ -349,6 +352,55 @@ public class ComplianceController : ControllerBase
 
         var result = _complianceAlertService.QueryAlerts(sanitized);
         return Ok(new ApiResponse<ComplianceAlertQueryPayload>
+        {
+            Code = "0000",
+            Msg = "查詢成功",
+            Payload = result
+        });
+    }
+
+    [HttpPost("financial-data/snapshots/upsert")]
+    public IActionResult UpsertFinancialMarketSnapshot([FromBody] FinancialMarketSnapshotUpsertRequest request)
+    {
+        var sanitized = new FinancialMarketSnapshotUpsertRequest
+        {
+            SourceName = request.SourceName?.Trim() ?? string.Empty,
+            CapturedAtUtc = request.CapturedAtUtc,
+            VolatilityIndex = request.VolatilityIndex,
+            CreditSpreadBps = request.CreditSpreadBps,
+            FxVolatilityPercent = request.FxVolatilityPercent,
+            LiquidityStressLevel = request.LiquidityStressLevel?.Trim() ?? "medium",
+            Metadata = request.Metadata
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.SourceName))
+        {
+            return BadRequest(new ApiResponse<object> { Code = "COMPLIANCE_4006", Msg = "sourceName 為必填" });
+        }
+
+        var snapshot = _financialMarketDataService.Upsert(sanitized);
+        return Ok(new ApiResponse<FinancialMarketSnapshot>
+        {
+            Code = "0000",
+            Msg = "金融市場快照寫入成功",
+            Payload = snapshot
+        });
+    }
+
+    [HttpPost("financial-data/snapshots/query")]
+    public IActionResult QueryFinancialMarketSnapshots([FromBody] FinancialMarketSnapshotQueryRequest request)
+    {
+        var sanitized = new FinancialMarketSnapshotQueryRequest
+        {
+            SourceName = request.SourceName?.Trim(),
+            FromCapturedAtUtc = request.FromCapturedAtUtc,
+            ToCapturedAtUtc = request.ToCapturedAtUtc,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+
+        var result = _financialMarketDataService.Query(sanitized);
+        return Ok(new ApiResponse<FinancialMarketSnapshotQueryPayload>
         {
             Code = "0000",
             Msg = "查詢成功",
