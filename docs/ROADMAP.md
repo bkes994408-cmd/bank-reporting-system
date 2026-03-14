@@ -98,5 +98,5 @@
 ### Iteration-1（MVP-7：預測性合規與自動化決策）
 - [x] 預測性合規風險評估：基於歷史稽核資料與外部法規更新，預測潛在合規風險並提供預警（`/api/compliance/predictive-risk/assess`、`/api/compliance/predictive-risk/query`）。
 - [x] 智能報表自動生成與提交：實現部分標準化報表的完全自動化生成與提交給監管機構。
-- [ ] 外部數據源擴展：整合更多元、實時的金融數據源，提升風險評估的準確性。
+- [x] 外部數據源擴展：新增即時金融市場快照寫入/查詢能力，並整合至預測風險評估新增 `real_time_market_stress` 因子（`/api/compliance/financial-data/snapshots/upsert`、`/api/compliance/financial-data/snapshots/query`）。
 - [ ] 區塊鏈合規證明自動化：將關鍵合規證明自動上鏈，簡化審計流程並提升數據公信力。

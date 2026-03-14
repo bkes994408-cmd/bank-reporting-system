@@ -14,7 +14,7 @@ public class PredictiveComplianceRiskServiceTests
     {
         var auditService = new ComplianceAuditService();
         var regulationService = new RegulationMonitoringService();
-        var service = new PredictiveComplianceRiskService(auditService, regulationService);
+        var service = new PredictiveComplianceRiskService(auditService, regulationService, new FinancialMarketDataService());
 
         for (var i = 0; i < 160; i++)
         {
@@ -74,7 +74,7 @@ public class PredictiveComplianceRiskServiceTests
     {
         var auditService = new ComplianceAuditService();
         var regulationService = new RegulationMonitoringService();
-        var service = new PredictiveComplianceRiskService(auditService, regulationService);
+        var service = new PredictiveComplianceRiskService(auditService, regulationService, new FinancialMarketDataService());
 
         _ = service.Assess(new PredictiveComplianceRiskAssessRequest { LookbackDays = 30, ForecastDays = 7 });
 
@@ -88,10 +88,49 @@ public class PredictiveComplianceRiskServiceTests
         Assert.True(result.Total >= 1);
         Assert.All(result.Reports, x => Assert.Equal("low", x.PredictedRiskLevel));
     }
+
+    [Fact]
+    public void Assess_WhenRealtimeMarketStressPresent_AddsMarketStressFactor()
+    {
+        var auditService = new ComplianceAuditService();
+        var regulationService = new RegulationMonitoringService();
+        var marketDataService = new FinancialMarketDataService();
+        marketDataService.Upsert(new FinancialMarketSnapshotUpsertRequest
+        {
+            SourceName = "twse-realtime-feed",
+            CapturedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            VolatilityIndex = 39,
+            CreditSpreadBps = 220,
+            FxVolatilityPercent = 13,
+            LiquidityStressLevel = "high"
+        });
+
+        var service = new PredictiveComplianceRiskService(auditService, regulationService, marketDataService);
+        var report = service.Assess(new PredictiveComplianceRiskAssessRequest());
+
+        Assert.Contains(report.Factors, x => x.FactorKey == "real_time_market_stress");
+        Assert.Contains(report.Factors, x => x.FactorKey == "real_time_market_stress" && x.Score >= 70);
+    }
 }
 
 public class PredictiveComplianceRiskControllerTests
 {
+    [Fact]
+    public void UpsertFinancialMarketSnapshot_ReturnsBadRequest_WhenSourceNameMissing()
+    {
+        var auditService = new ComplianceAuditService();
+        var regulationService = new RegulationMonitoringService();
+        var externalService = new StubExternalComplianceDataService();
+        var alertService = new ComplianceAlertService(auditService);
+        var marketDataService = new FinancialMarketDataService();
+        var predictiveService = new PredictiveComplianceRiskService(auditService, regulationService, marketDataService);
+        var controller = new ComplianceController(auditService, regulationService, externalService, alertService, predictiveService, new BlockchainComplianceService(), marketDataService);
+
+        var result = controller.UpsertFinancialMarketSnapshot(new FinancialMarketSnapshotUpsertRequest());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
     [Fact]
     public void AssessPredictiveRisk_ReturnsOkPayload()
     {
@@ -110,8 +149,9 @@ public class PredictiveComplianceRiskControllerTests
         var regulationService = new RegulationMonitoringService();
         var externalService = new StubExternalComplianceDataService();
         var alertService = new ComplianceAlertService(auditService);
-        var predictiveService = new PredictiveComplianceRiskService(auditService, regulationService);
-        var controller = new ComplianceController(auditService, regulationService, externalService, alertService, predictiveService, new BlockchainComplianceService());
+        var marketDataService = new FinancialMarketDataService();
+        var predictiveService = new PredictiveComplianceRiskService(auditService, regulationService, marketDataService);
+        var controller = new ComplianceController(auditService, regulationService, externalService, alertService, predictiveService, new BlockchainComplianceService(), marketDataService);
 
         var result = controller.AssessPredictiveRisk(new PredictiveComplianceRiskAssessRequest
         {

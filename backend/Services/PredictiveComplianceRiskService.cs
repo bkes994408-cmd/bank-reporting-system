@@ -14,14 +14,17 @@ public class PredictiveComplianceRiskService : IPredictiveComplianceRiskService
 {
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly IRegulationMonitoringService _regulationMonitoringService;
+    private readonly IFinancialMarketDataService _financialMarketDataService;
     private readonly ConcurrentQueue<PredictiveComplianceRiskReport> _reports = new();
 
     public PredictiveComplianceRiskService(
         IComplianceAuditService complianceAuditService,
-        IRegulationMonitoringService regulationMonitoringService)
+        IRegulationMonitoringService regulationMonitoringService,
+        IFinancialMarketDataService? financialMarketDataService = null)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
+        _financialMarketDataService = financialMarketDataService ?? new FinancialMarketDataService();
     }
 
     public PredictiveComplianceRiskReport Assess(PredictiveComplianceRiskAssessRequest request)
@@ -107,6 +110,33 @@ public class PredictiveComplianceRiskService : IPredictiveComplianceRiskService
                 FactorName = "重點領域暴露度",
                 Score = Scale(focusHits, 1, 8),
                 Evidence = $"focus areas hit {focusHits} times"
+            });
+        }
+
+        var latestMarketSnapshot = _financialMarketDataService.GetLatest(TimeSpan.FromHours(24));
+        if (latestMarketSnapshot is not null)
+        {
+            var liquidityStressScore = latestMarketSnapshot.LiquidityStressLevel switch
+            {
+                "high" => 100,
+                "medium" => 60,
+                _ => 20
+            };
+
+            var marketScore = new[]
+            {
+                Scale(latestMarketSnapshot.VolatilityIndex, 18, 45),
+                Scale(latestMarketSnapshot.CreditSpreadBps, 80, 260),
+                Scale(latestMarketSnapshot.FxVolatilityPercent, 4, 16),
+                liquidityStressScore
+            }.Average();
+
+            factors.Add(new PredictiveComplianceRiskFactor
+            {
+                FactorKey = "real_time_market_stress",
+                FactorName = "即時市場壓力",
+                Score = marketScore,
+                Evidence = $"source={latestMarketSnapshot.SourceName}, vix={latestMarketSnapshot.VolatilityIndex:F1}, creditSpread={latestMarketSnapshot.CreditSpreadBps:F1}bps, fxVol={latestMarketSnapshot.FxVolatilityPercent:F1}%, liquidity={latestMarketSnapshot.LiquidityStressLevel}"
             });
         }
 

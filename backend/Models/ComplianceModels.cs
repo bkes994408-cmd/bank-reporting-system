@@ -206,6 +206,26 @@ public class ExternalRiskScreeningResult
     public List<ExternalRiskMatchItem> Matches { get; set; } = new();
 }
 
+public class FinancialMarketSnapshot
+{
+    public string SnapshotId { get; set; } = Guid.NewGuid().ToString("N");
+    public string SourceName { get; set; } = string.Empty;
+    public DateTime CapturedAtUtc { get; set; }
+    public double VolatilityIndex { get; set; }
+    public double CreditSpreadBps { get; set; }
+    public double FxVolatilityPercent { get; set; }
+    public string LiquidityStressLevel { get; set; } = "low"; // low|medium|high
+    public Dictionary<string, string> Metadata { get; set; } = new();
+}
+
+public class FinancialMarketSnapshotQueryPayload
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<FinancialMarketSnapshot> Records { get; set; } = new();
+}
+
 public class ComplianceAlertRule
 {
     public string RuleId { get; set; } = string.Empty;
