@@ -9,6 +9,7 @@ using BankReporting.Api.Models;
 using BankReporting.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Moq;
 using Xunit;
 
 namespace BankReporting.Tests;
@@ -258,6 +259,50 @@ public class AgentServiceTests
 
         Assert.Equal("5000", result.Code);
         Assert.Equal("查詢失敗", result.Msg);
+    }
+
+    [Fact]
+    public async Task GetDeclareResultAsync_WhenApiReturnsNullBody_ReturnsFallbackMessage()
+    {
+        var handler = new StubHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("null", Encoding.UTF8, "application/json")
+            }));
+        var service = BuildService(handler);
+
+        var result = await service.GetDeclareResultAsync(new DeclareResultRequest { RequestId = "r1" });
+
+        Assert.Equal("5000", result.Code);
+        Assert.Equal("查詢失敗", result.Msg);
+    }
+
+    [Fact]
+    public async Task GetDeclareResultAsync_CallsExpectedEndpointPath()
+    {
+        Uri? capturedUri = null;
+        var payload = JsonSerializer.Serialize(new ApiResponse<ReportDeclarationResult>
+        {
+            Code = "0000",
+            Msg = "ok",
+            Payload = new ReportDeclarationResult { Status = "SUCCESS" }
+        });
+
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            capturedUri = request.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+        });
+        var service = BuildService(handler);
+
+        var result = await service.GetDeclareResultAsync(new DeclareResultRequest { RequestId = "r1" });
+
+        Assert.Equal("0000", result.Code);
+        Assert.NotNull(capturedUri);
+        Assert.Equal("/APBSA/agent-api/declare/result/v1", capturedUri!.AbsolutePath);
     }
 
     [Fact]
@@ -522,5 +567,169 @@ public class JweEncryptionServiceTests
 
         Assert.ThrowsAny<Exception>(() =>
             service.EncryptToCompactJwe(new { x = 1 }, "invalid-public-key"));
+    }
+}
+
+public class ComplianceProofServiceTests
+{
+    [Fact]
+    public async Task CreateProofAsync_CreatesStandardizedProofAndAuditTrail()
+    {
+        using var fixture = new ComplianceProofTestFixture();
+        var service = fixture.CreateService();
+
+        var create = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            ReportMonth = "01",
+            RequestId = "REQ-123",
+            CorrelationId = "CORR-777",
+            ReportPayload = new { amount = 100 }
+        });
+
+        Assert.Equal("0000", create.Code);
+        var proof = Assert.IsType<ComplianceProof>(create.Payload!.Proof);
+        Assert.Equal("COMPLIANCE_PROOF_V1", proof.SchemaVersion);
+        Assert.Equal("CORR-777", proof.CorrelationId);
+        Assert.NotNull(proof.Anchor);
+        Assert.False(string.IsNullOrWhiteSpace(proof.Anchor!.TransactionId));
+        Assert.Equal(2, proof.AuditTrail.Count(x => x.EventType != "IDEMPOTENCY_HIT"));
+        Assert.Contains(proof.AuditTrail, x => x.EventType == "PROOF_STANDARDIZED");
+        Assert.Contains(proof.AuditTrail, x => x.EventType == "BLOCKCHAIN_ANCHORED");
+    }
+
+    [Fact]
+    public async Task CreateProofAsync_CanonicalizesJson_ForStableDigest()
+    {
+        using var fixture = new ComplianceProofTestFixture();
+        var service = fixture.CreateService();
+
+        var first = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1",
+            IdempotencyKey = "IDEMPOTENCY-A",
+            ReportPayload = JsonSerializer.Deserialize<JsonElement>("{\"b\":2,\"a\":1,\"nested\":{\"y\":2,\"x\":1}}")
+        });
+
+        var second = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1",
+            IdempotencyKey = "IDEMPOTENCY-B",
+            ReportPayload = JsonSerializer.Deserialize<JsonElement>("{\"nested\":{\"x\":1,\"y\":2},\"a\":1,\"b\":2}")
+        });
+
+        Assert.Equal("0000", first.Code);
+        Assert.Equal("0000", second.Code);
+        Assert.Equal(first.Payload!.Proof.DataDigest, second.Payload!.Proof.DataDigest);
+    }
+
+    [Fact]
+    public async Task CreateProofAsync_WithSameIdempotencyKey_ReturnsSameProofWithoutReAnchor()
+    {
+        using var fixture = new ComplianceProofTestFixture();
+        var service = fixture.CreateService();
+
+        var first = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1",
+            IdempotencyKey = "KEY-123",
+            ReportPayload = new { amount = 100 }
+        });
+
+        var second = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1-retry",
+            IdempotencyKey = "KEY-123",
+            ReportPayload = new { amount = 100 }
+        });
+
+        Assert.Equal("0000", first.Code);
+        Assert.Equal("0000", second.Code);
+        Assert.Equal(first.Payload!.Proof.ProofId, second.Payload!.Proof.ProofId);
+        Assert.Equal(first.Payload.Proof.Anchor!.TransactionId, second.Payload!.Proof.Anchor!.TransactionId);
+        Assert.Contains(second.Payload!.Proof.AuditTrail, x => x.EventType == "IDEMPOTENCY_HIT");
+    }
+
+    [Fact]
+    public async Task GetProofByTransactionIdAsync_ReturnsMatchingProof()
+    {
+        using var fixture = new ComplianceProofTestFixture();
+        var service = fixture.CreateService();
+        var created = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1"
+        });
+
+        var txId = created.Payload!.Proof.Anchor!.TransactionId;
+        var queried = await service.GetProofByTransactionIdAsync(txId);
+
+        Assert.Equal("0000", queried.Code);
+        Assert.Equal(created.Payload.Proof.ProofId, queried.Payload!.Proof.ProofId);
+    }
+
+    [Fact]
+    public async Task CreateProofAsync_PersistsToFile_AndCanReloadByNewServiceInstance()
+    {
+        using var fixture = new ComplianceProofTestFixture();
+        var serviceA = fixture.CreateService();
+
+        var created = await serviceA.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-PERSIST"
+        });
+
+        var proofId = created.Payload!.Proof.ProofId;
+        var txId = created.Payload!.Proof.Anchor!.TransactionId;
+
+        var serviceB = fixture.CreateService();
+        var queriedById = await serviceB.GetProofByIdAsync(proofId);
+        var queriedByTx = await serviceB.GetProofByTransactionIdAsync(txId);
+
+        Assert.Equal("0000", queriedById.Code);
+        Assert.Equal("0000", queriedByTx.Code);
+        Assert.Equal(proofId, queriedById.Payload!.Proof.ProofId);
+        Assert.Equal(proofId, queriedByTx.Payload!.Proof.ProofId);
+    }
+
+    private sealed class ComplianceProofTestFixture : IDisposable
+    {
+        private readonly string _rootPath = Path.Combine(Path.GetTempPath(), $"bank-reporting-tests-{Guid.NewGuid():N}");
+
+        public ComplianceProofService CreateService()
+        {
+            Directory.CreateDirectory(_rootPath);
+            var hostEnvironment = new Mock<Microsoft.Extensions.Hosting.IHostEnvironment>();
+            hostEnvironment.Setup(x => x.ContentRootPath).Returns(_rootPath);
+            var persistence = new FileComplianceProofPersistence(hostEnvironment.Object);
+            return new ComplianceProofService(new SimulatedBlockchainAdapterService(), persistence);
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(_rootPath))
+            {
+                Directory.Delete(_rootPath, recursive: true);
+            }
+        }
     }
 }

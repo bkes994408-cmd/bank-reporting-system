@@ -477,7 +477,6 @@ docker compose down
   - `payload.jwePayload`: compact JWE 字串
   - `payload.alg`: `RSA-OAEP-256`
   - `payload.enc`: `A256GCM`
-
 ### `/api/declare/result` 契約（MVP）
 
 - Content-Type: `application/json`
@@ -485,6 +484,37 @@ docker compose down
   - `requestId`：`string`（申報請求編號）
   - `transactionId`：`string`（交易編號）
 
+請求範例：
+
+```json
+{
+  "requestId": "0070000-123"
+}
+```
+
+成功回應（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "查詢成功",
+  "payload": {
+    "requestId": "0070000-123",
+    "transactionId": "tx-001",
+    "status": "SUCCESS",
+    "message": "上傳完成"
+  }
+}
+```
+
+請求驗證失敗（400）：
+
+```json
+{
+  "code": "4000",
+  "msg": "requestId 或 transactionId 至少需填一個"
+}
+```
 ## 📊 支援的報表類型
 
 | 報表編號 | 名稱 |

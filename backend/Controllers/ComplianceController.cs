@@ -16,6 +16,7 @@ public class ComplianceController : ControllerBase
     private readonly IFinancialMarketDataService _financialMarketDataService;
     private readonly IPredictiveComplianceRiskService _predictiveComplianceRiskService;
     private readonly IBlockchainComplianceService _blockchainComplianceService;
+    private readonly IComplianceProofService _complianceProofService;
 
     public ComplianceController(
         IComplianceAuditService complianceAuditService,
@@ -24,7 +25,8 @@ public class ComplianceController : ControllerBase
         IComplianceAlertService complianceAlertService,
         IPredictiveComplianceRiskService predictiveComplianceRiskService,
         IBlockchainComplianceService blockchainComplianceService,
-        IFinancialMarketDataService? financialMarketDataService = null)
+        IFinancialMarketDataService? financialMarketDataService = null,
+        IComplianceProofService? complianceProofService = null)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
@@ -33,6 +35,7 @@ public class ComplianceController : ControllerBase
         _financialMarketDataService = financialMarketDataService ?? new FinancialMarketDataService();
         _predictiveComplianceRiskService = predictiveComplianceRiskService;
         _blockchainComplianceService = blockchainComplianceService;
+        _complianceProofService = complianceProofService ?? new NoopComplianceProofService();
     }
 
     [HttpPost("audit-reports/generate")]
@@ -526,6 +529,99 @@ public class ComplianceController : ControllerBase
             Msg = "區塊鏈共享方案模擬完成（探索）",
             Payload = result
         });
+    }
+
+    /// <summary>
+    /// 建立標準化合規證明並上鏈
+    /// </summary>
+    [HttpPost("proofs")]
+    public async Task<IActionResult> CreateProof([FromBody] CreateComplianceProofRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BankCode) ||
+            string.IsNullOrWhiteSpace(request.ReportId) ||
+            string.IsNullOrWhiteSpace(request.ReportYear) ||
+            string.IsNullOrWhiteSpace(request.RequestId))
+        {
+            return BadRequest(new { code = "4000", msg = "bankCode、reportId、reportYear、requestId 為必填" });
+        }
+
+        var sanitized = new CreateComplianceProofRequest
+        {
+            BankCode = request.BankCode.Trim(),
+            ReportId = request.ReportId.Trim(),
+            ReportYear = request.ReportYear.Trim(),
+            ReportMonth = request.ReportMonth?.Trim(),
+            RequestId = request.RequestId.Trim(),
+            CorrelationId = request.CorrelationId?.Trim(),
+            IdempotencyKey = request.IdempotencyKey?.Trim(),
+            ReportPayload = request.ReportPayload
+        };
+
+        var result = await _complianceProofService.CreateProofAsync(sanitized);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// 依 proofId 查詢證明
+    /// </summary>
+    [HttpGet("proofs/{proofId}")]
+    public async Task<IActionResult> GetProofById([FromRoute] string proofId)
+    {
+        if (string.IsNullOrWhiteSpace(proofId))
+        {
+            return BadRequest(new { code = "4000", msg = "proofId 為必填" });
+        }
+
+        var result = await _complianceProofService.GetProofByIdAsync(proofId.Trim());
+        return result.Code == "0000" ? Ok(result) : NotFound(result);
+    }
+
+    /// <summary>
+    /// 依 transactionId 查詢證明
+    /// </summary>
+    [HttpGet("proofs/tx/{transactionId}")]
+    public async Task<IActionResult> GetProofByTransactionId([FromRoute] string transactionId)
+    {
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            return BadRequest(new { code = "4000", msg = "transactionId 為必填" });
+        }
+
+        var result = await _complianceProofService.GetProofByTransactionIdAsync(transactionId.Trim());
+        return result.Code == "0000" ? Ok(result) : NotFound(result);
+    }
+
+    /// <summary>
+    /// 依 correlationId 查詢稽核軌跡
+    /// </summary>
+    [HttpGet("audit/{correlationId}")]
+    public async Task<IActionResult> GetAuditTrail([FromRoute] string correlationId)
+    {
+        if (string.IsNullOrWhiteSpace(correlationId))
+        {
+            return BadRequest(new { code = "4000", msg = "correlationId 為必填" });
+        }
+
+        var result = await _complianceProofService.GetAuditTrailByCorrelationIdAsync(correlationId.Trim());
+        return result.Code == "0000" ? Ok(result) : NotFound(result);
+    }
+
+    private sealed class NoopComplianceProofService : IComplianceProofService
+    {
+        private static ApiResponse<T> NotEnabled<T>() where T : class, new()
+            => new() { Code = "5010", Msg = "compliance proof service is not enabled", Payload = null };
+
+        public Task<ApiResponse<ComplianceProofPayload>> CreateProofAsync(CreateComplianceProofRequest request)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<ComplianceProofPayload>> GetProofByIdAsync(string proofId)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<ComplianceProofPayload>> GetProofByTransactionIdAsync(string transactionId)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<AuditTrailPayload>> GetAuditTrailByCorrelationIdAsync(string correlationId)
+            => Task.FromResult(NotEnabled<AuditTrailPayload>());
     }
 
     private static Dictionary<string, string>? ToCaseInsensitiveMappings(Dictionary<string, string>? fieldMappings)
