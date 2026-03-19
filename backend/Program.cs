@@ -45,6 +45,8 @@ builder.Services.AddSingleton<IComplianceAlertService, ComplianceAlertService>()
 builder.Services.AddSingleton<IFinancialMarketDataService, FinancialMarketDataService>();
 builder.Services.AddSingleton<IPredictiveComplianceRiskService, PredictiveComplianceRiskService>();
 builder.Services.AddSingleton<IBlockchainComplianceService, BlockchainComplianceService>();
+builder.Services.AddSingleton<IBlockchainAdapterService, SimulatedBlockchainAdapterService>();
+builder.Services.AddSingleton<IComplianceProofService, ComplianceProofService>();
 builder.Services.AddSingleton<IIntelligentReportAutomationService, IntelligentReportAutomationService>();
 builder.Services.AddSingleton<IEncryptedExportArchiveService, EncryptedExportArchiveService>();
 

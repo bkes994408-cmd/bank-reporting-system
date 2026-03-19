@@ -568,3 +568,52 @@ public class JweEncryptionServiceTests
             service.EncryptToCompactJwe(new { x = 1 }, "invalid-public-key"));
     }
 }
+
+public class ComplianceProofServiceTests
+{
+    [Fact]
+    public async Task CreateProofAsync_CreatesStandardizedProofAndAuditTrail()
+    {
+        var service = new ComplianceProofService(new SimulatedBlockchainAdapterService());
+
+        var create = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            ReportMonth = "01",
+            RequestId = "REQ-123",
+            CorrelationId = "CORR-777",
+            ReportPayload = new { amount = 100 }
+        });
+
+        Assert.Equal("0000", create.Code);
+        var proof = Assert.IsType<ComplianceProof>(create.Payload!.Proof);
+        Assert.Equal("COMPLIANCE_PROOF_V1", proof.SchemaVersion);
+        Assert.Equal("CORR-777", proof.CorrelationId);
+        Assert.NotNull(proof.Anchor);
+        Assert.False(string.IsNullOrWhiteSpace(proof.Anchor!.TransactionId));
+        Assert.Equal(2, proof.AuditTrail.Count);
+        Assert.Contains(proof.AuditTrail, x => x.EventType == "PROOF_STANDARDIZED");
+        Assert.Contains(proof.AuditTrail, x => x.EventType == "BLOCKCHAIN_ANCHORED");
+    }
+
+    [Fact]
+    public async Task GetProofByTransactionIdAsync_ReturnsMatchingProof()
+    {
+        var service = new ComplianceProofService(new SimulatedBlockchainAdapterService());
+        var created = await service.CreateProofAsync(new CreateComplianceProofRequest
+        {
+            BankCode = "0070000",
+            ReportId = "AI330",
+            ReportYear = "113",
+            RequestId = "REQ-1"
+        });
+
+        var txId = created.Payload!.Proof.Anchor!.TransactionId;
+        var queried = await service.GetProofByTransactionIdAsync(txId);
+
+        Assert.Equal("0000", queried.Code);
+        Assert.Equal(created.Payload.Proof.ProofId, queried.Payload!.Proof.ProofId);
+    }
+}

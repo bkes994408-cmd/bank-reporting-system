@@ -634,6 +634,62 @@ public class NewsControllerTests
     }
 }
 
+public class ComplianceControllerTests
+{
+    private readonly Mock<IComplianceProofService> _mockComplianceProofService;
+    private readonly ComplianceController _controller;
+
+    public ComplianceControllerTests()
+    {
+        _mockComplianceProofService = new Mock<IComplianceProofService>();
+        _controller = new ComplianceController(_mockComplianceProofService.Object);
+    }
+
+    [Fact]
+    public async Task CreateProof_ReturnsBadRequest_WhenMissingRequiredFields()
+    {
+        var result = await _controller.CreateProof(new CreateComplianceProofRequest());
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateProof_TrimsRequestBeforeCallingService()
+    {
+        var request = new CreateComplianceProofRequest
+        {
+            BankCode = " 0070000 ",
+            ReportId = " AI330 ",
+            ReportYear = " 113 ",
+            RequestId = " req-1 ",
+            CorrelationId = " corr-1 "
+        };
+
+        _mockComplianceProofService
+            .Setup(x => x.CreateProofAsync(It.IsAny<CreateComplianceProofRequest>()))
+            .ReturnsAsync(new ApiResponse<ComplianceProofPayload> { Code = "0000", Msg = "ok" });
+
+        await _controller.CreateProof(request);
+
+        _mockComplianceProofService.Verify(x => x.CreateProofAsync(It.Is<CreateComplianceProofRequest>(r =>
+            r.BankCode == "0070000" &&
+            r.ReportId == "AI330" &&
+            r.ReportYear == "113" &&
+            r.RequestId == "req-1" &&
+            r.CorrelationId == "corr-1")), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetProofById_ReturnsNotFound_WhenServiceReturns404()
+    {
+        _mockComplianceProofService
+            .Setup(x => x.GetProofByIdAsync("PRF-1"))
+            .ReturnsAsync(new ApiResponse<ComplianceProofPayload> { Code = "4040", Msg = "not found" });
+
+        var result = await _controller.GetProofById("PRF-1");
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+}
+
 public class MonitoringControllerTests
 {
     [Fact]
