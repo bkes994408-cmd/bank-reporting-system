@@ -11,5 +11,6 @@ public class CreateComplianceProofRequest
     public string? ReportMonth { get; set; }
     public string RequestId { get; set; } = string.Empty;
     public string? CorrelationId { get; set; }
+    public string? IdempotencyKey { get; set; }
     public object? ReportPayload { get; set; }
 }

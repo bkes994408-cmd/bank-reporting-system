@@ -553,6 +553,7 @@ public class ComplianceController : ControllerBase
             ReportMonth = request.ReportMonth?.Trim(),
             RequestId = request.RequestId.Trim(),
             CorrelationId = request.CorrelationId?.Trim(),
+            IdempotencyKey = request.IdempotencyKey?.Trim(),
             ReportPayload = request.ReportPayload
         };
 
