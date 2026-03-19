@@ -334,4 +334,43 @@ public class ComplianceControllerTests
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
+
+    [Fact]
+    public void CheckDataIntegrity_DetectsInvalidTrailRecords()
+    {
+        var service = new ComplianceAuditService();
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow,
+            TraceId = "trace-integrity",
+            User = "alice",
+            Method = "",
+            Path = "/api/reports",
+            StatusCode = 999,
+            DurationMs = -1
+        });
+
+        var payload = service.CheckDataIntegrity(new DataIntegrityCheckRequest { MaxIssues = 10 });
+
+        Assert.False(payload.IsConsistent);
+        Assert.True(payload.IssueCount >= 2);
+        Assert.Contains(payload.Issues, x => x.Type == "trail_required_field_missing");
+        Assert.Contains(payload.Issues, x => x.Type == "trail_status_code_invalid");
+    }
+
+    [Fact]
+    public void RunAuditTrailIntegrityCheck_ReturnsOkPayload()
+    {
+        var auditService = new ComplianceAuditService();
+        var regulationService = new RegulationMonitoringService();
+        var alertService = new ComplianceAlertService(auditService);
+        var controller = new ComplianceController(auditService, regulationService, new StubExternalComplianceDataService(), alertService, new PredictiveComplianceRiskService(auditService, regulationService), new BlockchainComplianceService());
+
+        var result = controller.RunAuditTrailIntegrityCheck(new DataIntegrityCheckRequest { MaxIssues = 20 });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ApiResponse<AuditDataIntegrityPayload>>(ok.Value);
+        Assert.NotNull(payload.Payload);
+        Assert.Equal("0000", payload.Code);
+    }
 }

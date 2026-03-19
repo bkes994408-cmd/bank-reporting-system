@@ -260,6 +260,14 @@ public class AuditTrailTraceRequest
 }
 
 /// <summary>
+/// 稽核資料一致性檢查請求
+/// </summary>
+public class DataIntegrityCheckRequest
+{
+    public int MaxIssues { get; set; } = 100;
+}
+
+/// <summary>
 /// 法規文件快照寫入請求
 /// </summary>
 public class RegulationSnapshotUpsertRequest

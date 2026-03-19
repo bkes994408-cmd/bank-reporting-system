@@ -101,6 +101,24 @@ public class AuditTrailTracePayload
     public List<AuditTrailTraceStep> Steps { get; set; } = new();
 }
 
+public class AuditDataIntegrityIssue
+{
+    public string Type { get; set; } = string.Empty;
+    public string Severity { get; set; } = "medium";
+    public string Message { get; set; } = string.Empty;
+    public string? RecordRef { get; set; }
+}
+
+public class AuditDataIntegrityPayload
+{
+    public DateTime GeneratedAtUtc { get; set; }
+    public int TotalTrailRecords { get; set; }
+    public int TotalReportRecords { get; set; }
+    public bool IsConsistent { get; set; }
+    public int IssueCount { get; set; }
+    public List<AuditDataIntegrityIssue> Issues { get; set; } = new();
+}
+
 public class RegulationDocumentSnapshot
 {
     public string SnapshotId { get; set; } = Guid.NewGuid().ToString("N");

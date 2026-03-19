@@ -11,6 +11,7 @@ public interface IComplianceAuditService
     AuditTrailQueryPayload QueryTrails(AuditTrailQueryRequest request);
     AuditBehaviorInsightsPayload GetBehaviorInsights(AuditBehaviorInsightsRequest request);
     AuditTrailTracePayload QueryTrace(AuditTrailTraceRequest request);
+    AuditDataIntegrityPayload CheckDataIntegrity(DataIntegrityCheckRequest request);
 }
 
 public class ComplianceAuditService : IComplianceAuditService
@@ -18,11 +19,10 @@ public class ComplianceAuditService : IComplianceAuditService
     private const int MaxTrailRecords = 10000;
     private const int MaxReportRecords = 2000;
 
-    // 使用 List + lock 以降低 ConcurrentQueue.Count/全列舉時的額外開銷，
-    // 並確保查詢在高併發下有一致 snapshot。
     private readonly object _trailLock = new();
     private readonly object _reportLock = new();
     private readonly List<AuditTrailRecord> _trailRecords = [];
+    private readonly Dictionary<string, Queue<AuditTrailRecord>> _traceIndex = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ComplianceAuditReportRecord> _reports = [];
 
     public void RecordAuditTrail(AuditTrailRecord record)
@@ -30,9 +30,17 @@ public class ComplianceAuditService : IComplianceAuditService
         lock (_trailLock)
         {
             _trailRecords.Add(record);
+            AddTraceIndex(record);
+
             if (_trailRecords.Count > MaxTrailRecords)
             {
                 var removeCount = _trailRecords.Count - MaxTrailRecords;
+                for (var i = 0; i < removeCount; i++)
+                {
+                    var removed = _trailRecords[i];
+                    RemoveTraceIndex(removed);
+                }
+
                 _trailRecords.RemoveRange(0, removeCount);
             }
         }
@@ -122,69 +130,36 @@ public class ComplianceAuditService : IComplianceAuditService
     {
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 500);
-
-        var query = SnapshotTrails().AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(request.User))
-        {
-            var user = request.User.Trim();
-            query = query.Where(x => string.Equals(x.User, user, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Path))
-        {
-            var path = request.Path.Trim();
-            query = query.Where(x => x.Path.Contains(path, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.RiskLevel))
-        {
-            var risk = request.RiskLevel.Trim();
-            query = query.Where(x => string.Equals(x.RiskLevel, risk, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (request.SensitiveOnly == true)
-        {
-            query = query.Where(x => x.IsSensitiveOperation);
-        }
-
-        if (request.MinStatusCode.HasValue)
-        {
-            query = query.Where(x => x.StatusCode >= request.MinStatusCode.Value);
-        }
-
-        if (request.MaxStatusCode.HasValue)
-        {
-            query = query.Where(x => x.StatusCode <= request.MaxStatusCode.Value);
-        }
-
-        if (request.MinDurationMs.HasValue)
-        {
-            query = query.Where(x => x.DurationMs >= request.MinDurationMs.Value);
-        }
+        var skip = (page - 1) * pageSize;
 
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
-        if (request.StartDateUtc.HasValue)
-        {
-            query = query.Where(x => x.TimestampUtc >= startUtc);
-        }
+        var total = 0;
+        var records = new List<AuditTrailRecord>(pageSize);
 
-        if (request.EndDateUtc.HasValue)
+        // 由新到舊掃描，避免每次查詢都做 full sort。
+        var snapshot = SnapshotTrails();
+        for (var i = snapshot.Count - 1; i >= 0; i--)
         {
-            query = query.Where(x => x.TimestampUtc <= endUtc);
-        }
+            var entry = snapshot[i];
+            if (!IsTrailMatch(entry, request, startUtc, endUtc))
+            {
+                continue;
+            }
 
-        var ordered = query
-            .OrderByDescending(x => x.TimestampUtc)
-            .ThenByDescending(x => x.TraceId, StringComparer.OrdinalIgnoreCase)
-            .ThenByDescending(x => x.Path, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            if (total >= skip && records.Count < pageSize)
+            {
+                records.Add(entry);
+            }
+
+            total++;
+        }
 
         return new AuditTrailQueryPayload
         {
-            Total = ordered.Count,
+            Total = total,
             Page = page,
             PageSize = pageSize,
-            Records = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList()
+            Records = records
         };
     }
 
@@ -250,32 +225,11 @@ public class ComplianceAuditService : IComplianceAuditService
     public AuditTrailTracePayload QueryTrace(AuditTrailTraceRequest request)
     {
         var maxSteps = Math.Clamp(request.MaxSteps, 1, 200);
-        var query = SnapshotTrails().AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(request.TraceId))
-        {
-            var traceId = request.TraceId.Trim();
-            query = query.Where(x => string.Equals(x.TraceId, traceId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.User))
-        {
-            var user = request.User.Trim();
-            query = query.Where(x => string.Equals(x.User, user, StringComparison.OrdinalIgnoreCase));
-        }
-
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
-        if (request.StartDateUtc.HasValue)
-        {
-            query = query.Where(x => x.TimestampUtc >= startUtc);
-        }
 
-        if (request.EndDateUtc.HasValue)
-        {
-            query = query.Where(x => x.TimestampUtc <= endUtc);
-        }
-
-        var steps = query
+        var source = SnapshotTraceSource(request.TraceId);
+        var steps = source
+            .Where(x => IsTraceMatch(x, request, startUtc, endUtc))
             .OrderBy(x => x.TimestampUtc)
             .ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Method, StringComparer.OrdinalIgnoreCase)
@@ -304,6 +258,135 @@ public class ComplianceAuditService : IComplianceAuditService
         };
     }
 
+    public AuditDataIntegrityPayload CheckDataIntegrity(DataIntegrityCheckRequest request)
+    {
+        var maxIssues = Math.Clamp(request.MaxIssues, 1, 1000);
+        var trails = SnapshotTrails();
+        var reports = SnapshotReports();
+
+        var issues = new List<AuditDataIntegrityIssue>();
+        var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var futureThreshold = DateTime.UtcNow.AddMinutes(5);
+
+        foreach (var entry in trails)
+        {
+            if (issues.Count >= maxIssues)
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Method) || string.IsNullOrWhiteSpace(entry.Path))
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_required_field_missing",
+                    Severity = "high",
+                    Message = "audit trail 缺少必要欄位（method/path）",
+                    RecordRef = BuildTrailRef(entry)
+                });
+            }
+
+            if (entry.StatusCode is < 100 or > 599)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_status_code_invalid",
+                    Severity = "medium",
+                    Message = $"statusCode 不合法：{entry.StatusCode}",
+                    RecordRef = BuildTrailRef(entry)
+                });
+            }
+
+            if (entry.DurationMs < 0)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_duration_negative",
+                    Severity = "medium",
+                    Message = $"durationMs 不可為負值：{entry.DurationMs}",
+                    RecordRef = BuildTrailRef(entry)
+                });
+            }
+
+            if (entry.TimestampUtc > futureThreshold)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_timestamp_future",
+                    Severity = "low",
+                    Message = "timestampUtc 超出合理未來時間（> 5 分鐘）",
+                    RecordRef = BuildTrailRef(entry)
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(entry.TraceId))
+            {
+                var key = $"{entry.TraceId}|{entry.TimestampUtc:O}|{entry.Method}|{entry.Path}";
+                if (!duplicateKeys.Add(key))
+                {
+                    issues.Add(new AuditDataIntegrityIssue
+                    {
+                        Type = "trail_duplicate_possible",
+                        Severity = "low",
+                        Message = "偵測到疑似重複 audit trail 記錄",
+                        RecordRef = BuildTrailRef(entry)
+                    });
+                }
+            }
+        }
+
+        foreach (var report in reports)
+        {
+            if (issues.Count >= maxIssues)
+            {
+                break;
+            }
+
+            if (report.StartDateUtc > report.EndDateUtc)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "report_range_invalid",
+                    Severity = "high",
+                    Message = "報告時間範圍異常：startDateUtc > endDateUtc",
+                    RecordRef = report.ReportId
+                });
+            }
+
+            if (report.Summary.TotalRequests < report.Summary.FailedRequests)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "report_summary_inconsistent",
+                    Severity = "high",
+                    Message = "報告摘要異常：failedRequests > totalRequests",
+                    RecordRef = report.ReportId
+                });
+            }
+
+            if (report.Summary.TotalRequests < report.Summary.SensitiveOperations)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "report_summary_inconsistent",
+                    Severity = "high",
+                    Message = "報告摘要異常：sensitiveOperations > totalRequests",
+                    RecordRef = report.ReportId
+                });
+            }
+        }
+
+        return new AuditDataIntegrityPayload
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            TotalTrailRecords = trails.Count,
+            TotalReportRecords = reports.Count,
+            IsConsistent = issues.Count == 0,
+            IssueCount = issues.Count,
+            Issues = issues
+        };
+    }
+
     private List<AuditTrailRecord> SnapshotTrails()
     {
         lock (_trailLock)
@@ -320,6 +403,150 @@ public class ComplianceAuditService : IComplianceAuditService
         }
     }
 
+    private List<AuditTrailRecord> SnapshotTraceSource(string? traceId)
+    {
+        lock (_trailLock)
+        {
+            if (!string.IsNullOrWhiteSpace(traceId) && _traceIndex.TryGetValue(traceId.Trim(), out var queue))
+            {
+                return [.. queue];
+            }
+
+            return [.. _trailRecords];
+        }
+    }
+
+    private void AddTraceIndex(AuditTrailRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.TraceId))
+        {
+            return;
+        }
+
+        var key = record.TraceId.Trim();
+        if (!_traceIndex.TryGetValue(key, out var queue))
+        {
+            queue = new Queue<AuditTrailRecord>();
+            _traceIndex[key] = queue;
+        }
+
+        queue.Enqueue(record);
+    }
+
+    private void RemoveTraceIndex(AuditTrailRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.TraceId))
+        {
+            return;
+        }
+
+        var key = record.TraceId.Trim();
+        if (!_traceIndex.TryGetValue(key, out var queue) || queue.Count == 0)
+        {
+            return;
+        }
+
+        // 正常情況下 queue 頭端就是要移除的最舊紀錄。
+        if (ReferenceEquals(queue.Peek(), record))
+        {
+            queue.Dequeue();
+        }
+        else
+        {
+            var rebuilt = new Queue<AuditTrailRecord>(queue.Count);
+            while (queue.TryDequeue(out var entry))
+            {
+                if (!ReferenceEquals(entry, record))
+                {
+                    rebuilt.Enqueue(entry);
+                }
+            }
+
+            _traceIndex[key] = rebuilt;
+            queue = rebuilt;
+        }
+
+        if (queue.Count == 0)
+        {
+            _traceIndex.Remove(key);
+        }
+    }
+
+    private static bool IsTrailMatch(AuditTrailRecord entry, AuditTrailQueryRequest request, DateTime startUtc, DateTime endUtc)
+    {
+        if (!string.IsNullOrWhiteSpace(request.User) && !string.Equals(entry.User, request.User.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Path) && !entry.Path.Contains(request.Path.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.RiskLevel) && !string.Equals(entry.RiskLevel, request.RiskLevel.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (request.SensitiveOnly == true && !entry.IsSensitiveOperation)
+        {
+            return false;
+        }
+
+        if (request.MinStatusCode.HasValue && entry.StatusCode < request.MinStatusCode.Value)
+        {
+            return false;
+        }
+
+        if (request.MaxStatusCode.HasValue && entry.StatusCode > request.MaxStatusCode.Value)
+        {
+            return false;
+        }
+
+        if (request.MinDurationMs.HasValue && entry.DurationMs < request.MinDurationMs.Value)
+        {
+            return false;
+        }
+
+        if (request.StartDateUtc.HasValue && entry.TimestampUtc < startUtc)
+        {
+            return false;
+        }
+
+        if (request.EndDateUtc.HasValue && entry.TimestampUtc > endUtc)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsTraceMatch(AuditTrailRecord entry, AuditTrailTraceRequest request, DateTime startUtc, DateTime endUtc)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TraceId) && !string.Equals(entry.TraceId, request.TraceId.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.User) && !string.Equals(entry.User, request.User.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (request.StartDateUtc.HasValue && entry.TimestampUtc < startUtc)
+        {
+            return false;
+        }
+
+        if (request.EndDateUtc.HasValue && entry.TimestampUtc > endUtc)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private static (DateTime start, DateTime end) NormalizeRange(DateTime? startUtc, DateTime? endUtc, TimeSpan fallbackRange)
     {
         var end = endUtc?.ToUniversalTime() ?? DateTime.UtcNow;
@@ -331,6 +558,9 @@ public class ComplianceAuditService : IComplianceAuditService
 
         return (start, end);
     }
+
+    private static string BuildTrailRef(AuditTrailRecord entry)
+        => $"{entry.TimestampUtc:O}|{entry.TraceId}|{entry.Method}|{entry.Path}";
 
     private static List<string> BuildOptimizationSuggestions(List<AuditTrailRecord> records)
     {

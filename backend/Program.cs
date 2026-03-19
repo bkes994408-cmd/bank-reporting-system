@@ -67,6 +67,7 @@ if (!app.Environment.IsEnvironment("Test") && !disableHttpsRedirection)
     app.UseHttpsRedirection();
 }
 app.UseCors("AllowFrontend");
+app.UseMiddleware<ApiExceptionHandlingMiddleware>();
 app.UseMiddleware<AdminAuthorizationMiddleware>();
 app.UseMiddleware<RequestMonitoringMiddleware>();
 
