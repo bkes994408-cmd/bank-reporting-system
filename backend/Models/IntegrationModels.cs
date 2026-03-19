@@ -61,3 +61,12 @@ public class ThirdPartyDeadLetterPayload
 {
     public List<ThirdPartyDeadLetterRecord> Items { get; set; } = new();
 }
+
+public class RegulatoryAuditReportSyncResult
+{
+    public string BankCode { get; set; } = string.Empty;
+    public string PlatformSystemName { get; set; } = string.Empty;
+    public ComplianceAuditReportRecord AuditReport { get; set; } = new();
+    public ThirdPartySyncResult SyncResult { get; set; } = new();
+    public bool Synced { get; set; }
+}

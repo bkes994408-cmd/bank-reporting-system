@@ -12,6 +12,7 @@ public class ComplianceController : ControllerBase
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly IRegulationMonitoringService _regulationMonitoringService;
     private readonly IExternalComplianceDataService _externalComplianceDataService;
+    private readonly IRegulatoryPlatformSyncService _regulatoryPlatformSyncService;
     private readonly IComplianceAlertService _complianceAlertService;
     private readonly IFinancialMarketDataService _financialMarketDataService;
     private readonly IPredictiveComplianceRiskService _predictiveComplianceRiskService;
@@ -26,11 +27,13 @@ public class ComplianceController : ControllerBase
         IPredictiveComplianceRiskService predictiveComplianceRiskService,
         IBlockchainComplianceService blockchainComplianceService,
         IFinancialMarketDataService? financialMarketDataService = null,
-        IComplianceProofService? complianceProofService = null)
+        IComplianceProofService? complianceProofService = null,
+        IRegulatoryPlatformSyncService? regulatoryPlatformSyncService = null)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
         _externalComplianceDataService = externalComplianceDataService;
+        _regulatoryPlatformSyncService = regulatoryPlatformSyncService ?? new NoopRegulatoryPlatformSyncService();
         _complianceAlertService = complianceAlertService;
         _financialMarketDataService = financialMarketDataService ?? new FinancialMarketDataService();
         _predictiveComplianceRiskService = predictiveComplianceRiskService;
@@ -74,6 +77,37 @@ public class ComplianceController : ControllerBase
             Msg = "查詢成功",
             Payload = result
         });
+    }
+
+    [HttpPost("regulator-platform/sync-audit-report")]
+    public async Task<IActionResult> SyncAuditReportToRegulatorPlatform([FromBody] RegulatoryAuditReportSyncRequest request)
+    {
+        var sanitized = new RegulatoryAuditReportSyncRequest
+        {
+            BankCode = request.BankCode?.Trim() ?? string.Empty,
+            PlatformSystemName = string.IsNullOrWhiteSpace(request.PlatformSystemName)
+                ? "regulator-platform"
+                : request.PlatformSystemName.Trim(),
+            StartDateUtc = request.StartDateUtc,
+            EndDateUtc = request.EndDateUtc
+        };
+
+        if (string.IsNullOrWhiteSpace(sanitized.BankCode))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Code = "COMPLIANCE_4008",
+                Msg = "bankCode 為必填"
+            });
+        }
+
+        var result = await _regulatoryPlatformSyncService.GenerateAndSyncAuditReportAsync(sanitized, CancellationToken.None);
+        if (result.Code == "4040")
+        {
+            return NotFound(result);
+        }
+
+        return Ok(result);
     }
 
     [HttpPost("audit-trails/query")]
@@ -604,6 +638,19 @@ public class ComplianceController : ControllerBase
 
         var result = await _complianceProofService.GetAuditTrailByCorrelationIdAsync(correlationId.Trim());
         return result.Code == "0000" ? Ok(result) : NotFound(result);
+    }
+
+    private sealed class NoopRegulatoryPlatformSyncService : IRegulatoryPlatformSyncService
+    {
+        public Task<ApiResponse<RegulatoryAuditReportSyncResult>> GenerateAndSyncAuditReportAsync(
+            RegulatoryAuditReportSyncRequest request,
+            CancellationToken cancellationToken)
+            => Task.FromResult(new ApiResponse<RegulatoryAuditReportSyncResult>
+            {
+                Code = "5011",
+                Msg = "regulatory platform sync service is not enabled",
+                Payload = null
+            });
     }
 
     private sealed class NoopComplianceProofService : IComplianceProofService
