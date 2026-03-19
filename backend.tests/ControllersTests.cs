@@ -634,15 +634,23 @@ public class NewsControllerTests
     }
 }
 
-public class ComplianceControllerTests
+public class ComplianceProofControllerTests
 {
     private readonly Mock<IComplianceProofService> _mockComplianceProofService;
     private readonly ComplianceController _controller;
 
-    public ComplianceControllerTests()
+    public ComplianceProofControllerTests()
     {
         _mockComplianceProofService = new Mock<IComplianceProofService>();
-        _controller = new ComplianceController(_mockComplianceProofService.Object);
+        _controller = new ComplianceController(
+            new Mock<IComplianceAuditService>().Object,
+            new Mock<IRegulationMonitoringService>().Object,
+            new Mock<IExternalComplianceDataService>().Object,
+            new Mock<IComplianceAlertService>().Object,
+            new Mock<IPredictiveComplianceRiskService>().Object,
+            new Mock<IBlockchainComplianceService>().Object,
+            new Mock<IFinancialMarketDataService>().Object,
+            _mockComplianceProofService.Object);
     }
 
     [Fact]

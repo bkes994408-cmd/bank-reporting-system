@@ -25,8 +25,8 @@ public class ComplianceController : ControllerBase
         IComplianceAlertService complianceAlertService,
         IPredictiveComplianceRiskService predictiveComplianceRiskService,
         IBlockchainComplianceService blockchainComplianceService,
-        IComplianceProofService complianceProofService,
-        IFinancialMarketDataService? financialMarketDataService = null)
+        IFinancialMarketDataService? financialMarketDataService = null,
+        IComplianceProofService? complianceProofService = null)
     {
         _complianceAuditService = complianceAuditService;
         _regulationMonitoringService = regulationMonitoringService;
@@ -35,7 +35,7 @@ public class ComplianceController : ControllerBase
         _financialMarketDataService = financialMarketDataService ?? new FinancialMarketDataService();
         _predictiveComplianceRiskService = predictiveComplianceRiskService;
         _blockchainComplianceService = blockchainComplianceService;
-        _complianceProofService = complianceProofService;
+        _complianceProofService = complianceProofService ?? new NoopComplianceProofService();
     }
 
     [HttpPost("audit-reports/generate")]
@@ -604,6 +604,24 @@ public class ComplianceController : ControllerBase
 
         var result = await _complianceProofService.GetAuditTrailByCorrelationIdAsync(correlationId.Trim());
         return result.Code == "0000" ? Ok(result) : NotFound(result);
+    }
+
+    private sealed class NoopComplianceProofService : IComplianceProofService
+    {
+        private static ApiResponse<T> NotEnabled<T>() where T : class, new()
+            => new() { Code = "5010", Msg = "compliance proof service is not enabled", Payload = null };
+
+        public Task<ApiResponse<ComplianceProofPayload>> CreateProofAsync(CreateComplianceProofRequest request)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<ComplianceProofPayload>> GetProofByIdAsync(string proofId)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<ComplianceProofPayload>> GetProofByTransactionIdAsync(string transactionId)
+            => Task.FromResult(NotEnabled<ComplianceProofPayload>());
+
+        public Task<ApiResponse<AuditTrailPayload>> GetAuditTrailByCorrelationIdAsync(string correlationId)
+            => Task.FromResult(NotEnabled<AuditTrailPayload>());
     }
 
     private static Dictionary<string, string>? ToCaseInsensitiveMappings(Dictionary<string, string>? fieldMappings)
