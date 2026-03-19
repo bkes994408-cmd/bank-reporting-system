@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 
@@ -16,28 +15,33 @@ public interface IComplianceAuditService
 
 public class ComplianceAuditService : IComplianceAuditService
 {
-    private readonly ConcurrentQueue<AuditTrailRecord> _trailRecords = new();
-    private readonly ConcurrentQueue<ComplianceAuditReportRecord> _reports = new();
+    private const int MaxTrailRecords = 10000;
+    private const int MaxReportRecords = 2000;
+
+    // 使用 List + lock 以降低 ConcurrentQueue.Count/全列舉時的額外開銷，
+    // 並確保查詢在高併發下有一致 snapshot。
+    private readonly object _trailLock = new();
+    private readonly object _reportLock = new();
+    private readonly List<AuditTrailRecord> _trailRecords = [];
+    private readonly List<ComplianceAuditReportRecord> _reports = [];
 
     public void RecordAuditTrail(AuditTrailRecord record)
     {
-        _trailRecords.Enqueue(record);
-        while (_trailRecords.Count > 10000 && _trailRecords.TryDequeue(out _))
+        lock (_trailLock)
         {
+            _trailRecords.Add(record);
+            if (_trailRecords.Count > MaxTrailRecords)
+            {
+                var removeCount = _trailRecords.Count - MaxTrailRecords;
+                _trailRecords.RemoveRange(0, removeCount);
+            }
         }
     }
 
     public Task<ComplianceAuditReportRecord> GenerateReportAsync(ComplianceAuditReportGenerateRequest request, CancellationToken cancellationToken)
     {
-        var end = request.EndDateUtc?.ToUniversalTime() ?? DateTime.UtcNow;
-        var start = request.StartDateUtc?.ToUniversalTime() ?? end.AddDays(-1);
-
-        if (start > end)
-        {
-            (start, end) = (end, start);
-        }
-
-        var records = _trailRecords
+        var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
+        var records = SnapshotTrails()
             .Where(r => r.TimestampUtc >= start && r.TimestampUtc <= end)
             .ToList();
 
@@ -54,6 +58,7 @@ public class ComplianceAuditService : IComplianceAuditService
             .Where(r => r.IsSensitiveOperation)
             .GroupBy(r => $"{r.Method} {r.Path}")
             .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .Take(5)
             .Select(g => g.Key)
             .ToList();
@@ -68,9 +73,14 @@ public class ComplianceAuditService : IComplianceAuditService
             TopSensitiveEndpoints = topSensitiveEndpoints
         };
 
-        _reports.Enqueue(report);
-        while (_reports.Count > 2000 && _reports.TryDequeue(out _))
+        lock (_reportLock)
         {
+            _reports.Add(report);
+            if (_reports.Count > MaxReportRecords)
+            {
+                var removeCount = _reports.Count - MaxReportRecords;
+                _reports.RemoveRange(0, removeCount);
+            }
         }
 
         return Task.FromResult(report);
@@ -81,7 +91,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 200);
 
-        var query = _reports.AsEnumerable();
+        var query = SnapshotReports().AsEnumerable();
         if (request.FromGeneratedAtUtc.HasValue)
         {
             var fromUtc = request.FromGeneratedAtUtc.Value.ToUniversalTime();
@@ -94,7 +104,11 @@ public class ComplianceAuditService : IComplianceAuditService
             query = query.Where(x => x.GeneratedAtUtc <= toUtc);
         }
 
-        var ordered = query.OrderByDescending(x => x.GeneratedAtUtc).ToList();
+        var ordered = query
+            .OrderByDescending(x => x.GeneratedAtUtc)
+            .ThenByDescending(x => x.ReportId, StringComparer.Ordinal)
+            .ToList();
+
         return new ComplianceAuditReportsPayload
         {
             Total = ordered.Count,
@@ -109,7 +123,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 500);
 
-        var query = _trailRecords.AsEnumerable();
+        var query = SnapshotTrails().AsEnumerable();
         if (!string.IsNullOrWhiteSpace(request.User))
         {
             var user = request.User.Trim();
@@ -148,19 +162,23 @@ public class ComplianceAuditService : IComplianceAuditService
             query = query.Where(x => x.DurationMs >= request.MinDurationMs.Value);
         }
 
+        var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
         if (request.StartDateUtc.HasValue)
         {
-            var startUtc = request.StartDateUtc.Value.ToUniversalTime();
             query = query.Where(x => x.TimestampUtc >= startUtc);
         }
 
         if (request.EndDateUtc.HasValue)
         {
-            var endUtc = request.EndDateUtc.Value.ToUniversalTime();
             query = query.Where(x => x.TimestampUtc <= endUtc);
         }
 
-        var ordered = query.OrderByDescending(x => x.TimestampUtc).ToList();
+        var ordered = query
+            .OrderByDescending(x => x.TimestampUtc)
+            .ThenByDescending(x => x.TraceId, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(x => x.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new AuditTrailQueryPayload
         {
             Total = ordered.Count,
@@ -172,15 +190,9 @@ public class ComplianceAuditService : IComplianceAuditService
 
     public AuditBehaviorInsightsPayload GetBehaviorInsights(AuditBehaviorInsightsRequest request)
     {
-        var end = request.EndDateUtc?.ToUniversalTime() ?? DateTime.UtcNow;
-        var start = request.StartDateUtc?.ToUniversalTime() ?? end.AddDays(-7);
+        var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
 
-        if (start > end)
-        {
-            (start, end) = (end, start);
-        }
-
-        var records = _trailRecords
+        var records = SnapshotTrails()
             .Where(r => r.TimestampUtc >= start && r.TimestampUtc <= end)
             .ToList();
 
@@ -191,7 +203,7 @@ public class ComplianceAuditService : IComplianceAuditService
             .GroupBy(r => string.IsNullOrWhiteSpace(r.User) ? "anonymous" : r.User, StringComparer.OrdinalIgnoreCase)
             .Select(g => new AuditBehaviorUserSummary
             {
-                User = g.First().User,
+                User = g.Key,
                 RequestCount = g.Count(),
                 FailureCount = g.Count(x => x.StatusCode >= 400),
                 SensitiveCount = g.Count(x => x.IsSensitiveOperation),
@@ -199,6 +211,7 @@ public class ComplianceAuditService : IComplianceAuditService
             })
             .OrderByDescending(x => x.RequestCount)
             .ThenByDescending(x => x.FailureCount)
+            .ThenBy(x => x.User, StringComparer.OrdinalIgnoreCase)
             .Take(topUsers)
             .ToList();
 
@@ -213,6 +226,7 @@ public class ComplianceAuditService : IComplianceAuditService
             })
             .OrderByDescending(x => x.RequestCount)
             .ThenByDescending(x => x.FailureCount)
+            .ThenBy(x => x.PathKey, StringComparer.OrdinalIgnoreCase)
             .Take(topPaths)
             .ToList();
 
@@ -236,7 +250,7 @@ public class ComplianceAuditService : IComplianceAuditService
     public AuditTrailTracePayload QueryTrace(AuditTrailTraceRequest request)
     {
         var maxSteps = Math.Clamp(request.MaxSteps, 1, 200);
-        var query = _trailRecords.AsEnumerable();
+        var query = SnapshotTrails().AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(request.TraceId))
         {
@@ -250,20 +264,21 @@ public class ComplianceAuditService : IComplianceAuditService
             query = query.Where(x => string.Equals(x.User, user, StringComparison.OrdinalIgnoreCase));
         }
 
+        var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
         if (request.StartDateUtc.HasValue)
         {
-            var startUtc = request.StartDateUtc.Value.ToUniversalTime();
             query = query.Where(x => x.TimestampUtc >= startUtc);
         }
 
         if (request.EndDateUtc.HasValue)
         {
-            var endUtc = request.EndDateUtc.Value.ToUniversalTime();
             query = query.Where(x => x.TimestampUtc <= endUtc);
         }
 
         var steps = query
             .OrderBy(x => x.TimestampUtc)
+            .ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Method, StringComparer.OrdinalIgnoreCase)
             .Take(maxSteps)
             .Select(x => new AuditTrailTraceStep
             {
@@ -287,6 +302,34 @@ public class ComplianceAuditService : IComplianceAuditService
             TotalSteps = steps.Count,
             Steps = steps
         };
+    }
+
+    private List<AuditTrailRecord> SnapshotTrails()
+    {
+        lock (_trailLock)
+        {
+            return [.. _trailRecords];
+        }
+    }
+
+    private List<ComplianceAuditReportRecord> SnapshotReports()
+    {
+        lock (_reportLock)
+        {
+            return [.. _reports];
+        }
+    }
+
+    private static (DateTime start, DateTime end) NormalizeRange(DateTime? startUtc, DateTime? endUtc, TimeSpan fallbackRange)
+    {
+        var end = endUtc?.ToUniversalTime() ?? DateTime.UtcNow;
+        var start = startUtc?.ToUniversalTime() ?? end.Add(fallbackRange.Negate());
+        if (start > end)
+        {
+            (start, end) = (end, start);
+        }
+
+        return (start, end);
     }
 
     private static List<string> BuildOptimizationSuggestions(List<AuditTrailRecord> records)

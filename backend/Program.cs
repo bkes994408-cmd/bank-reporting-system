@@ -39,6 +39,7 @@ builder.Services.AddSingleton<IThirdPartyIntegrationService, ThirdPartyIntegrati
 builder.Services.AddSingleton<IReportHistoryArchiveService, ReportHistoryArchiveService>();
 builder.Services.AddSingleton<IComplianceAuditService, ComplianceAuditService>();
 builder.Services.AddSingleton<IRegulationMonitoringService, RegulationMonitoringService>();
+builder.Services.AddSingleton<IRegulatoryPlatformSyncService, RegulatoryPlatformSyncService>();
 builder.Services.AddHttpClient(nameof(ExternalComplianceDataService));
 builder.Services.AddSingleton<IExternalComplianceDataService, ExternalComplianceDataService>();
 builder.Services.AddSingleton<IComplianceAlertService, ComplianceAlertService>();

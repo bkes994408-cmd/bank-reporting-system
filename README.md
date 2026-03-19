@@ -166,6 +166,7 @@ docker compose down
 | POST | `/api/compliance/regulations/impact-analysis/query` | 查詢法規影響分析報告 |
 | POST | `/api/compliance/external-data/sync` | 同步外部合規平台風險數據（制裁/PEP 等） |
 | POST | `/api/compliance/external-data/screen` | 以客戶資訊進行外部風險名單比對 |
+| POST | `/api/compliance/regulator-platform/sync-audit-report` | 生成合規審計報告並同步外部監管平台 |
 | POST | `/api/compliance/financial-data/snapshots/upsert` | 寫入外部即時金融市場快照（MVP-7） |
 | POST | `/api/compliance/financial-data/snapshots/query` | 查詢外部即時金融市場快照（MVP-7） |
 | POST | `/api/compliance/predictive-risk/assess` | 生成預測性合規風險評估（Iteration-1） |
@@ -175,6 +176,10 @@ docker compose down
 | POST | `/api/compliance/blockchain/anchors/commit` | 寫入區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/anchors/query` | 查詢區塊鏈稽核錨點（探索） |
 | POST | `/api/compliance/blockchain/sharing/simulate` | 模擬區塊鏈資料共享方案（探索） |
+| POST | `/api/compliance/proofs` | 建立標準化合規證明並透過 adapter 上鏈（MVP-7） |
+| GET | `/api/compliance/proofs/{proofId}` | 依證明編號查詢上鏈證明（MVP-7） |
+| GET | `/api/compliance/proofs/tx/{transactionId}` | 依鏈上交易編號反查證明（MVP-7） |
+| GET | `/api/compliance/audit/{correlationId}` | 查詢證明相關稽核軌跡關聯事件（MVP-7） |
 | POST | `/api/keys/import` | 匯入金鑰 |
 | POST | `/api/keys/validate` | 驗證金鑰 |
 | POST | `/api/token/update` | 更新 Token |
@@ -202,6 +207,49 @@ docker compose down
 - Predictive Risk 整合
   - `predictive-risk/assess` 會自動抓取最近 24 小時內最新快照，新增 `real_time_market_stress` 因子
   - 若 24 小時內無可用快照，評估流程會退回既有歷史稽核 + 法規變動訊號，不會報錯
+
+### `/api/compliance/proofs` 契約（MVP-7：區塊鏈合規證明自動化）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `bankCode`
+  - `reportId`
+  - `reportYear`
+  - `requestId`
+- 選填欄位：
+  - `reportMonth`
+  - `correlationId`（未提供時預設使用 `requestId`）
+  - `idempotencyKey`（重試去重；相同 key 直接回傳既有 proof）
+  - `reportPayload`（原始申報資料，會做 canonical JSON + SHA-256 產生 `dataDigest`）
+
+請求範例：
+
+```json
+{
+  "bankCode": "0070000",
+  "reportId": "AI330",
+  "reportYear": "113",
+  "reportMonth": "01",
+  "requestId": "REQ-20260319-001",
+  "correlationId": "CORR-AML-0001",
+  "idempotencyKey": "AI330-0070000-113-01-REQ-20260319-001",
+  "reportPayload": {
+    "totalAmount": 1000000,
+    "txCount": 124
+  }
+}
+```
+
+成功回應重點（200）：
+- `payload.proof.schemaVersion = COMPLIANCE_PROOF_V1`
+- `payload.proof.dataDigest`：標準化後雜湊
+- `payload.proof.anchor.transactionId`：上鏈交易編號
+- `payload.proof.auditTrail`：至少包含 `PROOF_STANDARDIZED`、`BLOCKCHAIN_ANCHORED`
+
+查詢端點：
+- `GET /api/compliance/proofs/{proofId}`
+- `GET /api/compliance/proofs/tx/{transactionId}`
+- `GET /api/compliance/audit/{correlationId}`
 
 ### `/api/compliance/external-data/sync` 契約（MVP-6）
 
@@ -286,6 +334,52 @@ docker compose down
         "tags": ["sanction", "pep"]
       }
     ]
+  }
+}
+```
+
+### `/api/compliance/regulator-platform/sync-audit-report` 契約（MVP-6）
+
+- Content-Type: `application/json`
+- 必填欄位：
+  - `bankCode`
+- 選填欄位：
+  - `platformSystemName`（預設 `regulator-platform`，需對應 `ThirdPartyIntegrations:Systems[].Name`）
+  - `startDateUtc`
+  - `endDateUtc`
+
+請求範例：
+
+```json
+{
+  "bankCode": "822",
+  "platformSystemName": "regulator-platform",
+  "startDateUtc": "2026-03-01T00:00:00Z",
+  "endDateUtc": "2026-03-31T23:59:59Z"
+}
+```
+
+成功回應範例（200）：
+
+```json
+{
+  "code": "0000",
+  "msg": "合規審計報告生成並同步監管平台成功",
+  "payload": {
+    "bankCode": "822",
+    "platformSystemName": "regulator-platform",
+    "synced": true,
+    "auditReport": {
+      "reportId": "audit-20260319123000-1a2b3c",
+      "generatedAtUtc": "2026-03-19T12:30:00Z"
+    },
+    "syncResult": {
+      "systemName": "regulator-platform",
+      "success": true,
+      "statusCode": 200,
+      "message": "ok",
+      "attemptCount": 1
+    }
   }
 }
 ```

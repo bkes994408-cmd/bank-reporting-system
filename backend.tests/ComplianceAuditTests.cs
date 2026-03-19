@@ -251,6 +251,67 @@ public class ComplianceControllerTests
     }
 
     [Fact]
+    public async Task GenerateAuditReport_SwapsInvalidTimeRangeAndStillReturnsData()
+    {
+        var auditService = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-5),
+            User = "alice",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 200,
+            IsSensitiveOperation = true,
+            RiskLevel = "medium"
+        });
+
+        var report = await auditService.GenerateReportAsync(new ComplianceAuditReportGenerateRequest
+        {
+            StartDateUtc = now,
+            EndDateUtc = now.AddHours(-1)
+        }, CancellationToken.None);
+
+        Assert.Equal(1, report.Summary.TotalRequests);
+    }
+
+    [Fact]
+    public void QueryAuditTrails_SwapsInvalidTimeRangeAndFiltersCorrectly()
+    {
+        var auditService = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-10),
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 100
+        });
+
+        auditService.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-120),
+            User = "bob",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 100
+        });
+
+        var payload = auditService.QueryTrails(new AuditTrailQueryRequest
+        {
+            StartDateUtc = now,
+            EndDateUtc = now.AddHours(-1)
+        });
+
+        Assert.Single(payload.Records);
+        Assert.Equal("alice", payload.Records[0].User);
+    }
+
+    [Fact]
     public async Task GenerateRegulationImpactAnalysis_ReturnsBadRequest_WhenNoBaseline()
     {
         var auditService = new ComplianceAuditService();

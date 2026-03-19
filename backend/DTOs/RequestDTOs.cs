@@ -448,6 +448,17 @@ public class IntelligentReportSubmissionQueryRequest
 }
 
 /// <summary>
+/// 生成合規審計報告並同步至外部監管平台請求
+/// </summary>
+public class RegulatoryAuditReportSyncRequest
+{
+    public string BankCode { get; set; } = string.Empty;
+    public string PlatformSystemName { get; set; } = "regulator-platform";
+    public DateTime? StartDateUtc { get; set; }
+    public DateTime? EndDateUtc { get; set; }
+}
+
+/// <summary>
 /// 區塊鏈稽核錨點寫入請求（探索）
 /// </summary>
 public class BlockchainAuditAnchorCommitRequest
