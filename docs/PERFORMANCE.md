@@ -73,8 +73,54 @@ dotnet run --project backend/BankReporting.Api.csproj
 
 > 註：本機數值僅供趨勢觀察；正式容量規劃仍建議在 staging/prod-like 環境進行壓測。
 
+## MVP-7 後續：稽核軌跡查詢基準與壓力測試（2026-03-20）
+
+### 測試目標
+驗證 `ComplianceAuditService.QueryTrace` 在高讀取 + 持續寫入情境下，是否仍維持：
+
+- 查詢結果排序正確（依 `TimestampUtc`）
+- `MaxSteps` 上限不被突破
+- 無例外、無死鎖、無資料競態造成的不一致
+
+### 實作內容
+
+1. **新增 BenchmarkDotNet 基準專案**
+   - 路徑：`backend.benchmarks/`
+   - 基準項目：
+     - `QueryTrace_ByTraceId`
+     - `QueryTrails_Filtered`
+
+2. **新增壓力測試（xUnit）**
+   - 檔案：`backend.tests/ComplianceAuditPerformanceTests.cs`
+   - 測試項目：
+     - `QueryTrace_Benchmark_BaselineUnderLoad`
+       - 10k seed records，重複 1000 次查詢
+       - 檢查 avg / p95 latency 閥值與資料正確性
+     - `QueryTrace_StressTest_RemainsStableUnderConcurrentReadWrite`
+       - 12 reader + 4 writer 併發持續 8 秒
+       - 驗證排序、step 上限與穩定性（無錯誤）
+
+### 執行指令
+
+```bash
+# 單元 + 壓力測試
+dotnet test BankReporting.sln -c Release
+
+# 基準測試（BenchmarkDotNet）
+dotnet run -c Release --project backend.benchmarks/BankReporting.Benchmarks.csproj -- --filter "*ComplianceAuditBenchmarks*"
+```
+
+### 本機結果（Apple Silicon / .NET 10.0.3）
+
+- `dotnet test`：**146 passed / 0 failed**（含壓力測試）
+- Benchmark：
+  - `QueryTrace_ByTraceId`：**38.23 us**
+  - `QueryTrails_Filtered`：**453.58 us**
+
+> Benchmark 報表輸出：`BenchmarkDotNet.Artifacts/results/BankReporting.Benchmarks.ComplianceAuditBenchmarks-report-github.md`
+
 ## 下一步建議
 
-1. 對 `AgentService` 外呼點（declare/reports/news）加入 request timing metric label。
-2. 增加簡單負載測試腳本（例如 k6/hey）納入 CI nightly。
-3. 若外部 agent 端延遲不穩，導入 timeout/retry policy（Polly）與熔斷保護。
+1. 對 `QueryTrace` / `QueryTrails` 建立 PR gate（例如：壓測 smoke test + latency regression 上限）。
+2. 加入「大資料量 + 長時間 soak test」場景（30~60 分鐘），觀察 GC/記憶體曲線。
+3. 若未來 audit trail 量級持續上升，可評估索引結構或 windowed cache 以降低查詢配置成本。
