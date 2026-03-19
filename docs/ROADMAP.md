@@ -99,4 +99,4 @@
 - [x] 預測性合規風險評估：基於歷史稽核資料與外部法規更新，預測潛在合規風險並提供預警（`/api/compliance/predictive-risk/assess`、`/api/compliance/predictive-risk/query`）。
 - [x] 智能報表自動生成與提交：實現部分標準化報表的完全自動化生成與提交給監管機構。
 - [x] 外部數據源擴展：新增即時金融市場快照寫入/查詢能力，並整合至預測風險評估新增 `real_time_market_stress` 因子（`/api/compliance/financial-data/snapshots/upsert`、`/api/compliance/financial-data/snapshots/query`）。
-- [ ] 區塊鏈合規證明自動化：將關鍵合規證明自動上鏈，簡化審計流程並提升數據公信力。
+- [x] 區塊鏈合規證明自動化：完成證明模型標準化（`COMPLIANCE_PROOF_V1`）、上鏈 adapter（`SimulatedBlockchainAdapterService`）、證明 API（`/api/compliance/proofs`、`/api/compliance/proofs/{proofId}`、`/api/compliance/proofs/tx/{transactionId}`）與稽核軌跡關聯查詢（`/api/compliance/audit/{correlationId}`）。

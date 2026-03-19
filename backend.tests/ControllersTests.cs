@@ -696,6 +696,31 @@ public class ComplianceProofControllerTests
         var result = await _controller.GetProofById("PRF-1");
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+    [Fact]
+    public async Task GetAuditTrail_ReturnsOk_WhenServiceReturnsData()
+    {
+        _mockComplianceProofService
+            .Setup(x => x.GetAuditTrailByCorrelationIdAsync("CORR-1"))
+            .ReturnsAsync(new ApiResponse<AuditTrailPayload>
+            {
+                Code = "0000",
+                Msg = "ok",
+                Payload = new AuditTrailPayload
+                {
+                    CorrelationId = "CORR-1",
+                    Events = new List<AuditTrailEntry>
+                    {
+                        new() { EventType = "PROOF_STANDARDIZED" },
+                        new() { EventType = "BLOCKCHAIN_ANCHORED" }
+                    }
+                }
+            });
+
+        var result = await _controller.GetAuditTrail("CORR-1");
+
+        Assert.IsType<OkObjectResult>(result);
+    }
 }
 
 public class MonitoringControllerTests
