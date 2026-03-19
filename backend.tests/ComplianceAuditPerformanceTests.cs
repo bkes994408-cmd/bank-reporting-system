@@ -78,7 +78,7 @@ public class ComplianceAuditPerformanceTests
             {
                 errors.Enqueue(ex);
             }
-        }, cts.Token));
+        }));
 
         var writers = Enumerable.Range(0, 4).Select(writerId => Task.Run(async () =>
         {
@@ -113,7 +113,7 @@ public class ComplianceAuditPerformanceTests
             {
                 errors.Enqueue(ex);
             }
-        }, cts.Token));
+        }));
 
         await Task.WhenAll(readers.Concat(writers));
 
