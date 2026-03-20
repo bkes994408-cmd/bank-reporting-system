@@ -341,7 +341,11 @@ public class ComplianceController : ControllerBase
             Threshold = request.Threshold,
             WindowMinutes = request.WindowMinutes,
             RiskLevel = request.RiskLevel?.Trim(),
-            SensitiveOnly = request.SensitiveOnly
+            SensitiveOnly = request.SensitiveOnly,
+            MinErrorRatePercent = request.MinErrorRatePercent,
+            MinDistinctPaths = request.MinDistinctPaths,
+            CooldownMinutes = request.CooldownMinutes,
+            ExcludedPaths = request.ExcludedPaths?.Select(x => x?.Trim() ?? string.Empty).ToList()
         };
 
         var rule = _complianceAlertService.UpsertRule(sanitized);

@@ -218,6 +218,9 @@ public class ComplianceControllerTests
         Assert.Equal(2, payload.TotalSteps);
         Assert.True(payload.Steps[0].TimestampUtc <= payload.Steps[1].TimestampUtc);
         Assert.All(payload.Steps, step => Assert.Equal("trace-001", step.TraceId));
+        Assert.NotEmpty(payload.Visualization.Nodes);
+        Assert.NotEmpty(payload.Visualization.MermaidFlowchart);
+        Assert.NotEmpty(payload.ExplainabilityNotes);
     }
 
     [Fact]

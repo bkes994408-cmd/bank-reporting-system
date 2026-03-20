@@ -337,6 +337,10 @@ public class ComplianceAlertRuleUpsertRequest
     public int WindowMinutes { get; set; } = 15;
     public string? RiskLevel { get; set; }
     public bool SensitiveOnly { get; set; }
+    public int MinErrorRatePercent { get; set; }
+    public int MinDistinctPaths { get; set; } = 1;
+    public int CooldownMinutes { get; set; }
+    public List<string>? ExcludedPaths { get; set; }
 }
 
 /// <summary>
