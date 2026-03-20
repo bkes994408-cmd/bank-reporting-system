@@ -27,6 +27,16 @@ public class ApiExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Business validation failed: {Path}", context.Request.Path);
             await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "API_4000", ex.Message);
         }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Resource not found: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status404NotFound, "API_4040", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Access denied: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, "API_4030", "無權限執行此操作");
+        }
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "Argument validation failed: {Path}", context.Request.Path);
@@ -46,6 +56,10 @@ public class ApiExceptionHandlingMiddleware
         {
             _logger.LogWarning(ex, "Request timed out: {Path}", context.Request.Path);
             await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "API_5040", "請求逾時，請稍後再試");
+        }
+        catch (OperationCanceledException ex) when (context.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogInformation(ex, "Client disconnected before response completed: {Path}", context.Request.Path);
         }
         catch (TimeoutException ex)
         {
@@ -74,7 +88,10 @@ public class ApiExceptionHandlingMiddleware
         {
             Code = code,
             Msg = message,
-            Payload = null
+            Payload = new
+            {
+                requestId = context.TraceIdentifier
+            }
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));

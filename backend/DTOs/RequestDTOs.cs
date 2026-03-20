@@ -225,6 +225,7 @@ public class AuditTrailQueryRequest
 {
     public string? User { get; set; }
     public string? Path { get; set; }
+    public bool? PathExact { get; set; }
     public string? RiskLevel { get; set; }
     public bool? SensitiveOnly { get; set; }
     public int? MinStatusCode { get; set; }

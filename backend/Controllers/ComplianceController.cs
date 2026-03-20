@@ -117,6 +117,7 @@ public class ComplianceController : ControllerBase
         {
             User = request.User?.Trim(),
             Path = request.Path?.Trim(),
+            PathExact = request.PathExact,
             RiskLevel = request.RiskLevel?.Trim(),
             SensitiveOnly = request.SensitiveOnly,
             MinStatusCode = request.MinStatusCode,
