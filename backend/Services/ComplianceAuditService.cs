@@ -110,9 +110,14 @@ public class ComplianceAuditService : IComplianceAuditService
         var pageSize = Math.Clamp(request.PageSize, 1, 500);
         var skip = (page - 1) * pageSize;
 
+        if (request.MinStatusCode.HasValue && request.MaxStatusCode.HasValue && request.MinStatusCode > request.MaxStatusCode)
+        {
+            throw new ArgumentException("minStatusCode 不可大於 maxStatusCode");
+        }
+
         var normalized = new NormalizedTrailQuery(request);
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
-        var snapshot = _repository.SnapshotTrails();
+        var snapshot = _repository.SnapshotTrailSourceByUser(normalized.User);
 
         if (!normalized.HasFilters)
         {
@@ -301,6 +306,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var traceUserMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var traceMethodPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var traceLastTimestampMap = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         var futureThreshold = DateTime.UtcNow.AddMinutes(5);
 
         foreach (var entry in trails)
@@ -417,6 +423,29 @@ public class ComplianceAuditService : IComplianceAuditService
                 {
                     traceMethodPathMap[normalizedTraceId] = methodPath;
                 }
+
+                if (traceLastTimestampMap.TryGetValue(normalizedTraceId, out var lastTimestamp) && entry.TimestampUtc < lastTimestamp)
+                {
+                    issues.Add(new AuditDataIntegrityIssue
+                    {
+                        Type = "trail_trace_timestamp_out_of_order",
+                        Severity = "medium",
+                        Message = "同一 traceId 的 timestampUtc 出現倒序，請確認事件時序",
+                        RecordRef = BuildTrailRef(entry)
+                    });
+                }
+
+                traceLastTimestampMap[normalizedTraceId] = entry.TimestampUtc;
+            }
+            else if (entry.IsSensitiveOperation || entry.StatusCode >= 500)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_trace_id_missing",
+                    Severity = "low",
+                    Message = "敏感/失敗操作未帶 traceId，可能影響追溯能力",
+                    RecordRef = BuildTrailRef(entry)
+                });
             }
         }
 

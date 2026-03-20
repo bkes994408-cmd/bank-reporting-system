@@ -296,6 +296,18 @@ public class ComplianceAuditRefactorTests
         public void AddTrail(AuditTrailRecord record) => Trails.Add(record);
         public List<AuditTrailRecord> SnapshotTrails() => [.. Trails];
         public List<AuditTrailRecord> SnapshotTraceSource(string? traceId) => TraceSource.Count == 0 ? [.. Trails] : [.. TraceSource];
+        public List<AuditTrailRecord> SnapshotTrailSourceByUser(string? user)
+        {
+            if (string.IsNullOrWhiteSpace(user))
+            {
+                return [.. Trails];
+            }
+
+            return Trails
+                .Where(x => string.Equals(x.User, user.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         public void AddReport(ComplianceAuditReportRecord report)
         {
             AddedReports.Add(report);

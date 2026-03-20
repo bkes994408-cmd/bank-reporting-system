@@ -43,6 +43,41 @@ public class ComplianceAuditPerformanceTests
     }
 
     [Fact]
+    public void QueryTrails_Benchmark_UserFilteredBaselineUnderLoad()
+    {
+        var service = BuildServiceWithSeedData(totalRecords: 12_000, targetTraceId: "trace-hot", targetTraceCount: 120);
+        var request = new AuditTrailQueryRequest
+        {
+            User = "user-11",
+            MinStatusCode = 200,
+            StartDateUtc = DateTime.UtcNow.AddDays(-1),
+            EndDateUtc = DateTime.UtcNow.AddDays(1),
+            Page = 1,
+            PageSize = 100
+        };
+
+        const int iterations = 600;
+        var elapsedUs = new long[iterations];
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var start = Stopwatch.GetTimestamp();
+            var payload = service.QueryTrails(request);
+            elapsedUs[i] = (long)(Stopwatch.GetElapsedTime(start).TotalMilliseconds * 1000);
+
+            Assert.True(payload.Total >= payload.Records.Count);
+            Assert.All(payload.Records, x => Assert.Equal("user-11", x.User));
+        }
+
+        Array.Sort(elapsedUs);
+        var p95Us = elapsedUs[(int)Math.Floor(iterations * 0.95) - 1];
+        var avgUs = elapsedUs.Average();
+
+        Assert.True(avgUs < 4_500, $"avg latency too high: {avgUs:F0}us");
+        Assert.True(p95Us < 9_000, $"p95 latency too high: {p95Us}us");
+    }
+
+    [Fact]
     public async Task QueryTrace_StressTest_RemainsStableUnderConcurrentReadWrite()
     {
         var service = BuildServiceWithSeedData(totalRecords: 8_000, targetTraceId: "trace-load", targetTraceCount: 80);

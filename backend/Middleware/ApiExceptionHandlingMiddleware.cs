@@ -27,6 +27,16 @@ public class ApiExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Business validation failed: {Path}", context.Request.Path);
             await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "API_4000", ex.Message);
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Argument validation failed: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "API_4003", ex.Message);
+        }
+        catch (FormatException ex)
+        {
+            _logger.LogWarning(ex, "Format validation failed: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "API_4004", ex.Message);
+        }
         catch (BadHttpRequestException ex)
         {
             _logger.LogWarning(ex, "Bad request payload: {Path}", context.Request.Path);

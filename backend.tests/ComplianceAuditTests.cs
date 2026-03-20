@@ -376,4 +376,63 @@ public class ComplianceControllerTests
         Assert.NotNull(payload.Payload);
         Assert.Equal("0000", payload.Code);
     }
+
+    [Fact]
+    public void CheckDataIntegrity_DetectsTraceTimestampOutOfOrder_AndMissingTraceId()
+    {
+        var service = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now,
+            TraceId = "trace-order",
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 30
+        });
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-1),
+            TraceId = "trace-order",
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200,
+            DurationMs = 20
+        });
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now,
+            TraceId = "",
+            User = "bob",
+            Method = "POST",
+            Path = "/api/declare",
+            StatusCode = 500,
+            IsSensitiveOperation = true
+        });
+
+        var payload = service.CheckDataIntegrity(new DataIntegrityCheckRequest { MaxIssues = 20 });
+
+        Assert.Contains(payload.Issues, x => x.Type == "trail_trace_timestamp_out_of_order");
+        Assert.Contains(payload.Issues, x => x.Type == "trail_trace_id_missing");
+    }
+
+    [Fact]
+    public void QueryAuditTrails_ThrowsWhenStatusCodeRangeIsInvalid()
+    {
+        var service = new ComplianceAuditService();
+
+        var ex = Assert.Throws<ArgumentException>(() => service.QueryTrails(new AuditTrailQueryRequest
+        {
+            MinStatusCode = 500,
+            MaxStatusCode = 200
+        }));
+
+        Assert.Contains("minStatusCode", ex.Message);
+    }
 }
