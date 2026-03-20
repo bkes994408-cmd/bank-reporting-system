@@ -7,6 +7,7 @@ internal interface IComplianceAuditRepository
     void AddTrail(AuditTrailRecord record);
     List<AuditTrailRecord> SnapshotTrails();
     List<AuditTrailRecord> SnapshotTraceSource(string? traceId);
+    List<AuditTrailRecord> SnapshotTrailSourceByUser(string? user);
     void AddReport(ComplianceAuditReportRecord report);
     List<ComplianceAuditReportRecord> SnapshotReports();
 }
@@ -20,6 +21,7 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
     private readonly object _reportLock = new();
     private readonly List<AuditTrailRecord> _trailRecords = [];
     private readonly Dictionary<string, Queue<AuditTrailRecord>> _traceIndex = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Queue<AuditTrailRecord>> _userIndex = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ComplianceAuditReportRecord> _reports = [];
 
     public void AddTrail(AuditTrailRecord record)
@@ -28,6 +30,7 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         {
             _trailRecords.Add(record);
             AddTraceIndex(record);
+            AddUserIndex(record);
 
             if (_trailRecords.Count <= MaxTrailRecords)
             {
@@ -38,6 +41,7 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
             for (var i = 0; i < removeCount; i++)
             {
                 RemoveTraceIndex(_trailRecords[i]);
+                RemoveUserIndex(_trailRecords[i]);
             }
 
             _trailRecords.RemoveRange(0, removeCount);
@@ -57,6 +61,19 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         lock (_trailLock)
         {
             if (!string.IsNullOrWhiteSpace(traceId) && _traceIndex.TryGetValue(traceId.Trim(), out var queue))
+            {
+                return [.. queue];
+            }
+
+            return [.. _trailRecords];
+        }
+    }
+
+    public List<AuditTrailRecord> SnapshotTrailSourceByUser(string? user)
+    {
+        lock (_trailLock)
+        {
+            if (!string.IsNullOrWhiteSpace(user) && _userIndex.TryGetValue(user.Trim(), out var queue))
             {
                 return [.. queue];
             }
@@ -110,7 +127,40 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         }
 
         var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue) || queue.Count == 0)
+        RemoveQueueRecord(_traceIndex, key, record);
+    }
+
+    private void AddUserIndex(AuditTrailRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.User))
+        {
+            return;
+        }
+
+        var key = record.User.Trim();
+        if (!_userIndex.TryGetValue(key, out var queue))
+        {
+            queue = new Queue<AuditTrailRecord>();
+            _userIndex[key] = queue;
+        }
+
+        queue.Enqueue(record);
+    }
+
+    private void RemoveUserIndex(AuditTrailRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.User))
+        {
+            return;
+        }
+
+        var key = record.User.Trim();
+        RemoveQueueRecord(_userIndex, key, record);
+    }
+
+    private static void RemoveQueueRecord(Dictionary<string, Queue<AuditTrailRecord>> index, string key, AuditTrailRecord record)
+    {
+        if (!index.TryGetValue(key, out var queue) || queue.Count == 0)
         {
             return;
         }
@@ -130,13 +180,13 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
                 }
             }
 
-            _traceIndex[key] = rebuilt;
+            index[key] = rebuilt;
             queue = rebuilt;
         }
 
         if (queue.Count == 0)
         {
-            _traceIndex.Remove(key);
+            index.Remove(key);
         }
     }
 }

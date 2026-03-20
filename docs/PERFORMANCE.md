@@ -91,17 +91,21 @@ dotnet run --project backend/BankReporting.Api.csproj
      - `QueryTrails_Filtered`
      - `CheckDataIntegrity_StandardWindow`
 
-2. **審計查詢效能優化（Service hot path）**
+2. **審計查詢效能優化（Service + Repository hot path）**
    - `QueryTrails` 針對「無篩選條件」場景走快速分頁路徑，避免全量比對。
+   - 新增 repository user index（`SnapshotTrailSourceByUser`），當查詢帶 `user` 時直接縮小資料集。
    - 篩選查詢預先正規化條件（trim / null coalesce）以降低逐筆比對開銷。
 
 3. **Data Integrity Check 強化**
    - 新增 `riskLevel` 合法性檢查（low/medium/high）。
-   - 新增同一 `traceId` 的 user 一致性與 method/path 一致性檢查。
+   - 新增同一 `traceId` 的 user 一致性、method/path 一致性、timestamp 時序檢查。
+   - 新增敏感/失敗操作缺少 `traceId` 的追溯性風險檢查。
    - 新增報告摘要與時間欄位一致性檢查（`uniqueUsers <= totalRequests`、`generatedAtUtc >= endDateUtc`）。
 
 4. **API 錯誤處理強化**
    - `ApiExceptionHandlingMiddleware` 新增 timeout 類錯誤映射（`API_5040` / HTTP 504）。
+   - 新增 `ArgumentException`（`API_4003`）與 `FormatException`（`API_4004`）映射，統一 400 系列錯誤回應。
+   - `QueryTrails` 新增 `minStatusCode <= maxStatusCode` 參數防呆。
    - `Program.cs` 新增 `InvalidModelStateResponseFactory`，統一模型驗證錯誤回應格式。
 
 5. **新增壓力測試（xUnit）**
@@ -126,11 +130,11 @@ dotnet run -c Release --project backend.benchmarks/BankReporting.Benchmarks.cspr
 
 ### 本機結果（Apple Silicon / .NET 10.0.3）
 
-- `dotnet test`：**163 passed / 0 failed**（含壓力測試與一致性/錯誤處理測試）
-- Benchmark：
-  - `QueryTrace_ByTraceId`：**15.87 us**
-  - `QueryTrails_Filtered`：**82.77 us**
-  - `CheckDataIntegrity_StandardWindow`：**3.67 ms**
+- `dotnet test`：**167 passed / 0 failed**（含壓力測試與一致性/錯誤處理測試）
+- Benchmark（本次執行）：
+  - `QueryTrace_ByTraceId`：**16.31 us**
+  - `QueryTrails_Filtered`：**65.15 us**
+  - `CheckDataIntegrity_StandardWindow`：**3.81 ms**
 
 > Benchmark 報表輸出：`BenchmarkDotNet.Artifacts/results/BankReporting.Benchmarks.ComplianceAuditBenchmarks-report-github.md`
 

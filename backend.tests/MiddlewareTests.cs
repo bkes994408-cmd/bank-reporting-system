@@ -136,6 +136,26 @@ public class MiddlewareTests
         Assert.Contains("\"code\":\"API_5040\"", content);
     }
 
+    [Fact]
+    public async Task ApiExceptionHandlingMiddleware_MapsArgumentException_To400()
+    {
+        var middleware = new ApiExceptionHandlingMiddleware(
+            _ => throw new ArgumentException("invalid range"),
+            NullLogger<ApiExceptionHandlingMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+        var content = await reader.ReadToEndAsync();
+        Assert.Contains("\"code\":\"API_4003\"", content);
+    }
+
     private static AdminAuthorizationMiddleware BuildMiddleware(out Func<bool> called)
     {
         var config = new ConfigurationBuilder()
