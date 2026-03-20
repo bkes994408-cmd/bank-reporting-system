@@ -91,6 +91,27 @@ public class AuditTrailTraceStep
     public string RiskLevel { get; set; } = "low";
 }
 
+public class AuditTraceNode
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public int HitCount { get; set; }
+}
+
+public class AuditTraceEdge
+{
+    public string FromNodeId { get; set; } = string.Empty;
+    public string ToNodeId { get; set; } = string.Empty;
+    public int TransitionCount { get; set; }
+}
+
+public class AuditTrailTraceVisualization
+{
+    public List<AuditTraceNode> Nodes { get; set; } = new();
+    public List<AuditTraceEdge> Edges { get; set; } = new();
+    public string MermaidFlowchart { get; set; } = string.Empty;
+}
+
 public class AuditTrailTracePayload
 {
     public string TraceId { get; set; } = string.Empty;
@@ -99,6 +120,8 @@ public class AuditTrailTracePayload
     public DateTime? EndDateUtc { get; set; }
     public int TotalSteps { get; set; }
     public List<AuditTrailTraceStep> Steps { get; set; } = new();
+    public AuditTrailTraceVisualization Visualization { get; set; } = new();
+    public List<string> ExplainabilityNotes { get; set; } = new();
 }
 
 public class AuditDataIntegrityIssue
@@ -255,6 +278,10 @@ public class ComplianceAlertRule
     public int WindowMinutes { get; set; } = 15;
     public string? RiskLevel { get; set; }
     public bool SensitiveOnly { get; set; }
+    public int MinErrorRatePercent { get; set; }
+    public int MinDistinctPaths { get; set; } = 1;
+    public int CooldownMinutes { get; set; }
+    public List<string> ExcludedPaths { get; set; } = new();
     public DateTime UpdatedAtUtc { get; set; }
 }
 
@@ -264,6 +291,13 @@ public class ComplianceAlertRulesPayload
     public int Page { get; set; }
     public int PageSize { get; set; }
     public List<ComplianceAlertRule> Rules { get; set; } = new();
+}
+
+public class ComplianceAlertExplainability
+{
+    public List<string> TriggerReasons { get; set; } = new();
+    public Dictionary<string, string> Metrics { get; set; } = new();
+    public List<string> EvidenceSamples { get; set; } = new();
 }
 
 public class ComplianceAlertRecord
@@ -280,6 +314,7 @@ public class ComplianceAlertRecord
     public string SuggestedAction { get; set; } = string.Empty;
     public List<string> TriggerDetails { get; set; } = new();
     public List<string> NotifyChannels { get; set; } = new();
+    public ComplianceAlertExplainability Explainability { get; set; } = new();
 }
 
 public class ComplianceAlertEvaluateResult
