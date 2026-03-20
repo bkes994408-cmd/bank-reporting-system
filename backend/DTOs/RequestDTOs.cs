@@ -443,6 +443,10 @@ public class IntelligentReportAutoSubmitRequest
     public string ManagerTel { get; set; } = string.Empty;
     public string ManagerEmail { get; set; } = string.Empty;
     public bool DryRun { get; set; }
+    public bool EnablePredictiveRiskAssessment { get; set; } = true;
+    public int PredictiveLookbackDays { get; set; } = 30;
+    public int PredictiveForecastDays { get; set; } = 14;
+    public List<string>? PredictiveFocusAreas { get; set; }
     public Dictionary<string, object>? SourceData { get; set; }
 }
 
