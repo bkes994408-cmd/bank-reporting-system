@@ -110,15 +110,22 @@ public class ComplianceAuditService : IComplianceAuditService
         var pageSize = Math.Clamp(request.PageSize, 1, 500);
         var skip = (page - 1) * pageSize;
 
+        var normalized = new NormalizedTrailQuery(request);
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
+        var snapshot = _repository.SnapshotTrails();
+
+        if (!normalized.HasFilters)
+        {
+            return BuildUnfilteredTrailPage(snapshot, page, pageSize, skip);
+        }
+
         var total = 0;
         var records = new List<AuditTrailRecord>(pageSize);
 
-        var snapshot = _repository.SnapshotTrails();
         for (var i = snapshot.Count - 1; i >= 0; i--)
         {
             var entry = snapshot[i];
-            if (!IsTrailMatch(entry, request, startUtc, endUtc))
+            if (!IsTrailMatch(entry, normalized, startUtc, endUtc))
             {
                 continue;
             }
@@ -292,6 +299,8 @@ public class ComplianceAuditService : IComplianceAuditService
 
         var issues = new List<AuditDataIntegrityIssue>();
         var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var traceUserMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var traceMethodPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var futureThreshold = DateTime.UtcNow.AddMinutes(5);
 
         foreach (var entry in trails)
@@ -334,6 +343,17 @@ public class ComplianceAuditService : IComplianceAuditService
                 });
             }
 
+            if (!IsRiskLevelValid(entry.RiskLevel))
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "trail_risk_level_invalid",
+                    Severity = "medium",
+                    Message = $"riskLevel 不合法：{entry.RiskLevel}",
+                    RecordRef = BuildTrailRef(entry)
+                });
+            }
+
             if (entry.TimestampUtc > futureThreshold)
             {
                 issues.Add(new AuditDataIntegrityIssue
@@ -347,7 +367,8 @@ public class ComplianceAuditService : IComplianceAuditService
 
             if (!string.IsNullOrWhiteSpace(entry.TraceId))
             {
-                var key = $"{entry.TraceId}|{entry.TimestampUtc:O}|{entry.Method}|{entry.Path}";
+                var normalizedTraceId = entry.TraceId.Trim();
+                var key = $"{normalizedTraceId}|{entry.TimestampUtc:O}|{entry.Method}|{entry.Path}";
                 if (!duplicateKeys.Add(key))
                 {
                     issues.Add(new AuditDataIntegrityIssue
@@ -357,6 +378,44 @@ public class ComplianceAuditService : IComplianceAuditService
                         Message = "偵測到疑似重複 audit trail 記錄",
                         RecordRef = BuildTrailRef(entry)
                     });
+                }
+
+                var normalizedUser = string.IsNullOrWhiteSpace(entry.User) ? "anonymous" : entry.User.Trim();
+                if (traceUserMap.TryGetValue(normalizedTraceId, out var existingUser))
+                {
+                    if (!string.Equals(existingUser, normalizedUser, StringComparison.OrdinalIgnoreCase))
+                    {
+                        issues.Add(new AuditDataIntegrityIssue
+                        {
+                            Type = "trail_trace_user_inconsistent",
+                            Severity = "high",
+                            Message = $"同一 traceId 出現不同 user：{existingUser} / {normalizedUser}",
+                            RecordRef = BuildTrailRef(entry)
+                        });
+                    }
+                }
+                else
+                {
+                    traceUserMap[normalizedTraceId] = normalizedUser;
+                }
+
+                var methodPath = $"{entry.Method} {entry.Path}";
+                if (traceMethodPathMap.TryGetValue(normalizedTraceId, out var existingMethodPath))
+                {
+                    if (!string.Equals(existingMethodPath, methodPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        issues.Add(new AuditDataIntegrityIssue
+                        {
+                            Type = "trail_trace_path_inconsistent",
+                            Severity = "medium",
+                            Message = "同一 traceId 出現多組 method/path，請確認是否 trace 鏈結異常",
+                            RecordRef = BuildTrailRef(entry)
+                        });
+                    }
+                }
+                else
+                {
+                    traceMethodPathMap[normalizedTraceId] = methodPath;
                 }
             }
         }
@@ -400,6 +459,28 @@ public class ComplianceAuditService : IComplianceAuditService
                     RecordRef = report.ReportId
                 });
             }
+
+            if (report.Summary.UniqueUsers > report.Summary.TotalRequests)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "report_summary_inconsistent",
+                    Severity = "medium",
+                    Message = "報告摘要異常：uniqueUsers > totalRequests",
+                    RecordRef = report.ReportId
+                });
+            }
+
+            if (report.GeneratedAtUtc < report.EndDateUtc)
+            {
+                issues.Add(new AuditDataIntegrityIssue
+                {
+                    Type = "report_generated_time_invalid",
+                    Severity = "low",
+                    Message = "報告時間異常：generatedAtUtc 早於 endDateUtc",
+                    RecordRef = report.ReportId
+                });
+            }
         }
 
         return new AuditDataIntegrityPayload
@@ -413,24 +494,24 @@ public class ComplianceAuditService : IComplianceAuditService
         };
     }
 
-    private static bool IsTrailMatch(AuditTrailRecord entry, AuditTrailQueryRequest request, DateTime startUtc, DateTime endUtc)
+    private static bool IsTrailMatch(AuditTrailRecord entry, NormalizedTrailQuery request, DateTime startUtc, DateTime endUtc)
     {
-        if (!string.IsNullOrWhiteSpace(request.User) && !string.Equals(entry.User, request.User.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (request.User is not null && !string.Equals(entry.User, request.User, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Path) && !entry.Path.Contains(request.Path.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (request.Path is not null && !entry.Path.Contains(request.Path, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.RiskLevel) && !string.Equals(entry.RiskLevel, request.RiskLevel.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (request.RiskLevel is not null && !string.Equals(entry.RiskLevel, request.RiskLevel, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (request.SensitiveOnly == true && !entry.IsSensitiveOperation)
+        if (request.SensitiveOnly && !entry.IsSensitiveOperation)
         {
             return false;
         }
@@ -502,6 +583,12 @@ public class ComplianceAuditService : IComplianceAuditService
 
     private static string BuildTrailRef(AuditTrailRecord entry)
         => $"{entry.TimestampUtc:O}|{entry.TraceId}|{entry.Method}|{entry.Path}";
+
+    private static bool IsRiskLevelValid(string? riskLevel)
+        => string.IsNullOrWhiteSpace(riskLevel) ||
+           riskLevel.Equals("low", StringComparison.OrdinalIgnoreCase) ||
+           riskLevel.Equals("medium", StringComparison.OrdinalIgnoreCase) ||
+           riskLevel.Equals("high", StringComparison.OrdinalIgnoreCase);
 
     private static void UpdateAggregate(Dictionary<string, AggregateStats> bucket, string key, AuditTrailRecord record)
     {
@@ -652,6 +739,64 @@ public class ComplianceAuditService : IComplianceAuditService
         }
 
         return true;
+    }
+
+    private static AuditTrailQueryPayload BuildUnfilteredTrailPage(List<AuditTrailRecord> snapshot, int page, int pageSize, int skip)
+    {
+        var records = new List<AuditTrailRecord>(pageSize);
+        if (skip < snapshot.Count)
+        {
+            var start = snapshot.Count - 1 - skip;
+            for (var i = start; i >= 0 && records.Count < pageSize; i--)
+            {
+                records.Add(snapshot[i]);
+            }
+        }
+
+        return new AuditTrailQueryPayload
+        {
+            Total = snapshot.Count,
+            Page = page,
+            PageSize = pageSize,
+            Records = records
+        };
+    }
+
+    private sealed class NormalizedTrailQuery
+    {
+        public NormalizedTrailQuery(AuditTrailQueryRequest request)
+        {
+            User = string.IsNullOrWhiteSpace(request.User) ? null : request.User.Trim();
+            Path = string.IsNullOrWhiteSpace(request.Path) ? null : request.Path.Trim();
+            RiskLevel = string.IsNullOrWhiteSpace(request.RiskLevel) ? null : request.RiskLevel.Trim();
+            SensitiveOnly = request.SensitiveOnly == true;
+            MinStatusCode = request.MinStatusCode;
+            MaxStatusCode = request.MaxStatusCode;
+            MinDurationMs = request.MinDurationMs;
+            StartDateUtc = request.StartDateUtc;
+            EndDateUtc = request.EndDateUtc;
+        }
+
+        public string? User { get; }
+        public string? Path { get; }
+        public string? RiskLevel { get; }
+        public bool SensitiveOnly { get; }
+        public int? MinStatusCode { get; }
+        public int? MaxStatusCode { get; }
+        public long? MinDurationMs { get; }
+        public DateTime? StartDateUtc { get; }
+        public DateTime? EndDateUtc { get; }
+
+        public bool HasFilters =>
+            User is not null ||
+            Path is not null ||
+            RiskLevel is not null ||
+            SensitiveOnly ||
+            MinStatusCode.HasValue ||
+            MaxStatusCode.HasValue ||
+            MinDurationMs.HasValue ||
+            StartDateUtc.HasValue ||
+            EndDateUtc.HasValue;
     }
 
     private sealed class AggregateStats

@@ -208,6 +208,32 @@ public class ComplianceAuditRefactorTests
     }
 
     [Fact]
+    public void QueryTrails_Unfiltered_UsesReversePagingContract()
+    {
+        var service = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+
+        for (var i = 0; i < 12; i++)
+        {
+            service.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = now.AddSeconds(i),
+                User = $"u{i}",
+                Method = "GET",
+                Path = $"/p/{i}",
+                StatusCode = 200
+            });
+        }
+
+        var page2 = service.QueryTrails(new AuditTrailQueryRequest { Page = 2, PageSize = 5 });
+
+        Assert.Equal(12, page2.Total);
+        Assert.Equal(5, page2.Records.Count);
+        Assert.Equal("/p/6", page2.Records[0].Path);
+        Assert.Equal("/p/2", page2.Records[^1].Path);
+    }
+
+    [Fact]
     public async Task GenerateReportAsync_PersistsToRepository()
     {
         var now = DateTime.UtcNow;
@@ -224,6 +250,40 @@ public class ComplianceAuditRefactorTests
 
         Assert.Single(repository.AddedReports);
         Assert.Equal(report.ReportId, repository.AddedReports[0].ReportId);
+    }
+
+    [Fact]
+    public void CheckDataIntegrity_DetectsTraceInconsistencyAndInvalidRiskLevel()
+    {
+        var service = new ComplianceAuditService();
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-2),
+            TraceId = "trace-x",
+            User = "alice",
+            Method = "GET",
+            Path = "/api/a",
+            StatusCode = 200,
+            RiskLevel = "unknown"
+        });
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddMinutes(-1),
+            TraceId = "trace-x",
+            User = "bob",
+            Method = "POST",
+            Path = "/api/b",
+            StatusCode = 200,
+            RiskLevel = "low"
+        });
+
+        var payload = service.CheckDataIntegrity(new DataIntegrityCheckRequest { MaxIssues = 20 });
+
+        Assert.Contains(payload.Issues, x => x.Type == "trail_risk_level_invalid");
+        Assert.Contains(payload.Issues, x => x.Type == "trail_trace_user_inconsistent");
+        Assert.Contains(payload.Issues, x => x.Type == "trail_trace_path_inconsistent");
     }
 
     private sealed class FakeAuditRepository : IComplianceAuditRepository

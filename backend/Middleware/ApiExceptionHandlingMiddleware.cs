@@ -32,6 +32,16 @@ public class ApiExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Bad request payload: {Path}", context.Request.Path);
             await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "API_4001", ex.Message);
         }
+        catch (OperationCanceledException ex) when (!context.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Request timed out: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "API_5040", "請求逾時，請稍後再試");
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Request timed out: {Path}", context.Request.Path);
+            await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "API_5040", "請求逾時，請稍後再試");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled API exception: {Path}", context.Request.Path);

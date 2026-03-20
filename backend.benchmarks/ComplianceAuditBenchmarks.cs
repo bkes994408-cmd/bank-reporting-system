@@ -13,6 +13,7 @@ public class ComplianceAuditBenchmarks
     private ComplianceAuditService _service = default!;
     private AuditTrailTraceRequest _traceRequest = default!;
     private AuditTrailQueryRequest _trailRequest = default!;
+    private DataIntegrityCheckRequest _integrityRequest = default!;
 
     [GlobalSetup]
     public void Setup()
@@ -67,6 +68,11 @@ public class ComplianceAuditBenchmarks
             Page = 1,
             PageSize = 100
         };
+
+        _integrityRequest = new DataIntegrityCheckRequest
+        {
+            MaxIssues = 200
+        };
     }
 
     [Benchmark]
@@ -74,4 +80,7 @@ public class ComplianceAuditBenchmarks
 
     [Benchmark]
     public AuditTrailQueryPayload QueryTrails_Filtered() => _service.QueryTrails(_trailRequest);
+
+    [Benchmark]
+    public AuditDataIntegrityPayload CheckDataIntegrity_StandardWindow() => _service.CheckDataIntegrity(_integrityRequest);
 }
