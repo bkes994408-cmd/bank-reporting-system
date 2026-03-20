@@ -17,40 +17,25 @@ public interface IComplianceAuditService
 
 public class ComplianceAuditService : IComplianceAuditService
 {
-    private const int MaxTrailRecords = 10000;
-    private const int MaxReportRecords = 2000;
+    private readonly IComplianceAuditRepository _repository;
 
-    private readonly object _trailLock = new();
-    private readonly object _reportLock = new();
-    private readonly List<AuditTrailRecord> _trailRecords = [];
-    private readonly Dictionary<string, Queue<AuditTrailRecord>> _traceIndex = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<ComplianceAuditReportRecord> _reports = [];
+    public ComplianceAuditService()
+        : this(new InMemoryComplianceAuditRepository())
+    {
+    }
+
+    internal ComplianceAuditService(IComplianceAuditRepository repository)
+    {
+        _repository = repository;
+    }
 
     public void RecordAuditTrail(AuditTrailRecord record)
-    {
-        lock (_trailLock)
-        {
-            _trailRecords.Add(record);
-            AddTraceIndex(record);
-
-            if (_trailRecords.Count > MaxTrailRecords)
-            {
-                var removeCount = _trailRecords.Count - MaxTrailRecords;
-                for (var i = 0; i < removeCount; i++)
-                {
-                    var removed = _trailRecords[i];
-                    RemoveTraceIndex(removed);
-                }
-
-                _trailRecords.RemoveRange(0, removeCount);
-            }
-        }
-    }
+        => _repository.AddTrail(record);
 
     public Task<ComplianceAuditReportRecord> GenerateReportAsync(ComplianceAuditReportGenerateRequest request, CancellationToken cancellationToken)
     {
         var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
-        var records = SnapshotTrails()
+        var records = _repository.SnapshotTrails()
             .Where(r => r.TimestampUtc >= start && r.TimestampUtc <= end)
             .ToList();
 
@@ -82,15 +67,7 @@ public class ComplianceAuditService : IComplianceAuditService
             TopSensitiveEndpoints = topSensitiveEndpoints
         };
 
-        lock (_reportLock)
-        {
-            _reports.Add(report);
-            if (_reports.Count > MaxReportRecords)
-            {
-                var removeCount = _reports.Count - MaxReportRecords;
-                _reports.RemoveRange(0, removeCount);
-            }
-        }
+        _repository.AddReport(report);
 
         return Task.FromResult(report);
     }
@@ -100,7 +77,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 200);
 
-        var query = SnapshotReports().AsEnumerable();
+        var query = _repository.SnapshotReports().AsEnumerable();
         if (request.FromGeneratedAtUtc.HasValue)
         {
             var fromUtc = request.FromGeneratedAtUtc.Value.ToUniversalTime();
@@ -137,8 +114,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var total = 0;
         var records = new List<AuditTrailRecord>(pageSize);
 
-        // 由新到舊掃描，避免每次查詢都做 full sort。
-        var snapshot = SnapshotTrails();
+        var snapshot = _repository.SnapshotTrails();
         for (var i = snapshot.Count - 1; i >= 0; i--)
         {
             var entry = snapshot[i];
@@ -167,7 +143,7 @@ public class ComplianceAuditService : IComplianceAuditService
     public AuditBehaviorInsightsPayload GetBehaviorInsights(AuditBehaviorInsightsRequest request)
     {
         var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
-        var snapshot = SnapshotTrails();
+        var snapshot = _repository.SnapshotTrails();
 
         var topUsers = Math.Clamp(request.TopUsers, 1, 20);
         var topPaths = Math.Clamp(request.TopPaths, 1, 20);
@@ -256,10 +232,9 @@ public class ComplianceAuditService : IComplianceAuditService
         var maxSteps = Math.Clamp(request.MaxSteps, 1, 200);
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
 
-        var source = SnapshotTraceSource(request.TraceId);
+        var source = _repository.SnapshotTraceSource(request.TraceId);
         var steps = new List<AuditTrailTraceStep>(maxSteps);
 
-        // source 透過 Trace index 時原始順序已是時間序，僅線性掃描即可。
         foreach (var item in source)
         {
             if (!IsTraceMatch(item, request, startUtc, endUtc))
@@ -312,8 +287,8 @@ public class ComplianceAuditService : IComplianceAuditService
     public AuditDataIntegrityPayload CheckDataIntegrity(DataIntegrityCheckRequest request)
     {
         var maxIssues = Math.Clamp(request.MaxIssues, 1, 1000);
-        var trails = SnapshotTrails();
-        var reports = SnapshotReports();
+        var trails = _repository.SnapshotTrails();
+        var reports = _repository.SnapshotReports();
 
         var issues = new List<AuditDataIntegrityIssue>();
         var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -436,91 +411,6 @@ public class ComplianceAuditService : IComplianceAuditService
             IssueCount = issues.Count,
             Issues = issues
         };
-    }
-
-    private List<AuditTrailRecord> SnapshotTrails()
-    {
-        lock (_trailLock)
-        {
-            return [.. _trailRecords];
-        }
-    }
-
-    private List<ComplianceAuditReportRecord> SnapshotReports()
-    {
-        lock (_reportLock)
-        {
-            return [.. _reports];
-        }
-    }
-
-    private List<AuditTrailRecord> SnapshotTraceSource(string? traceId)
-    {
-        lock (_trailLock)
-        {
-            if (!string.IsNullOrWhiteSpace(traceId) && _traceIndex.TryGetValue(traceId.Trim(), out var queue))
-            {
-                return [.. queue];
-            }
-
-            return [.. _trailRecords];
-        }
-    }
-
-    private void AddTraceIndex(AuditTrailRecord record)
-    {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
-        {
-            return;
-        }
-
-        var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue))
-        {
-            queue = new Queue<AuditTrailRecord>();
-            _traceIndex[key] = queue;
-        }
-
-        queue.Enqueue(record);
-    }
-
-    private void RemoveTraceIndex(AuditTrailRecord record)
-    {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
-        {
-            return;
-        }
-
-        var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue) || queue.Count == 0)
-        {
-            return;
-        }
-
-        // 正常情況下 queue 頭端就是要移除的最舊紀錄。
-        if (ReferenceEquals(queue.Peek(), record))
-        {
-            queue.Dequeue();
-        }
-        else
-        {
-            var rebuilt = new Queue<AuditTrailRecord>(queue.Count);
-            while (queue.TryDequeue(out var entry))
-            {
-                if (!ReferenceEquals(entry, record))
-                {
-                    rebuilt.Enqueue(entry);
-                }
-            }
-
-            _traceIndex[key] = rebuilt;
-            queue = rebuilt;
-        }
-
-        if (queue.Count == 0)
-        {
-            _traceIndex.Remove(key);
-        }
     }
 
     private static bool IsTrailMatch(AuditTrailRecord entry, AuditTrailQueryRequest request, DateTime startUtc, DateTime endUtc)
