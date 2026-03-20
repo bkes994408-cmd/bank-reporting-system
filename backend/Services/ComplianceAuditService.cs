@@ -117,7 +117,12 @@ public class ComplianceAuditService : IComplianceAuditService
 
         var normalized = new NormalizedTrailQuery(request);
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
-        var snapshot = _repository.SnapshotTrailSourceByUser(normalized.User);
+
+        var snapshot = normalized.User is not null
+            ? _repository.SnapshotTrailSourceByUser(normalized.User)
+            : normalized.PathExact && normalized.Path is not null
+                ? _repository.SnapshotTrailSourceByPath(normalized.Path)
+                : _repository.SnapshotTrails();
 
         if (!normalized.HasFilters)
         {
@@ -530,9 +535,16 @@ public class ComplianceAuditService : IComplianceAuditService
             return false;
         }
 
-        if (request.Path is not null && !entry.Path.Contains(request.Path, StringComparison.OrdinalIgnoreCase))
+        if (request.Path is not null)
         {
-            return false;
+            var pathMatched = request.PathExact
+                ? string.Equals(NormalizePath(entry.Path), NormalizePath(request.Path), StringComparison.OrdinalIgnoreCase)
+                : entry.Path.Contains(request.Path, StringComparison.OrdinalIgnoreCase);
+
+            if (!pathMatched)
+            {
+                return false;
+            }
         }
 
         if (request.RiskLevel is not null && !string.Equals(entry.RiskLevel, request.RiskLevel, StringComparison.OrdinalIgnoreCase))
@@ -608,6 +620,22 @@ public class ComplianceAuditService : IComplianceAuditService
         }
 
         return (start, end);
+    }
+
+    private static string NormalizePath(string? rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath))
+        {
+            return "/";
+        }
+
+        var normalized = rawPath.Trim();
+        if (normalized.Length > 1)
+        {
+            normalized = normalized.TrimEnd('/');
+        }
+
+        return normalized;
     }
 
     private static string BuildTrailRef(AuditTrailRecord entry)
@@ -797,6 +825,7 @@ public class ComplianceAuditService : IComplianceAuditService
         {
             User = string.IsNullOrWhiteSpace(request.User) ? null : request.User.Trim();
             Path = string.IsNullOrWhiteSpace(request.Path) ? null : request.Path.Trim();
+            PathExact = request.PathExact == true;
             RiskLevel = string.IsNullOrWhiteSpace(request.RiskLevel) ? null : request.RiskLevel.Trim();
             SensitiveOnly = request.SensitiveOnly == true;
             MinStatusCode = request.MinStatusCode;
@@ -808,6 +837,7 @@ public class ComplianceAuditService : IComplianceAuditService
 
         public string? User { get; }
         public string? Path { get; }
+        public bool PathExact { get; }
         public string? RiskLevel { get; }
         public bool SensitiveOnly { get; }
         public int? MinStatusCode { get; }
@@ -819,6 +849,7 @@ public class ComplianceAuditService : IComplianceAuditService
         public bool HasFilters =>
             User is not null ||
             Path is not null ||
+            PathExact ||
             RiskLevel is not null ||
             SensitiveOnly ||
             MinStatusCode.HasValue ||

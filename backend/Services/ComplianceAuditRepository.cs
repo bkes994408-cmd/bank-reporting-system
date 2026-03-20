@@ -8,6 +8,7 @@ internal interface IComplianceAuditRepository
     List<AuditTrailRecord> SnapshotTrails();
     List<AuditTrailRecord> SnapshotTraceSource(string? traceId);
     List<AuditTrailRecord> SnapshotTrailSourceByUser(string? user);
+    List<AuditTrailRecord> SnapshotTrailSourceByPath(string? path);
     void AddReport(ComplianceAuditReportRecord report);
     List<ComplianceAuditReportRecord> SnapshotReports();
 }
@@ -22,6 +23,7 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
     private readonly List<AuditTrailRecord> _trailRecords = [];
     private readonly Dictionary<string, Queue<AuditTrailRecord>> _traceIndex = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Queue<AuditTrailRecord>> _userIndex = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Queue<AuditTrailRecord>> _pathIndex = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ComplianceAuditReportRecord> _reports = [];
 
     public void AddTrail(AuditTrailRecord record)
@@ -29,8 +31,9 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         lock (_trailLock)
         {
             _trailRecords.Add(record);
-            AddTraceIndex(record);
-            AddUserIndex(record);
+            AddIndexRecord(_traceIndex, record.TraceId, record);
+            AddIndexRecord(_userIndex, record.User, record);
+            AddIndexRecord(_pathIndex, record.Path, record, NormalizePathKey);
 
             if (_trailRecords.Count <= MaxTrailRecords)
             {
@@ -40,8 +43,10 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
             var removeCount = _trailRecords.Count - MaxTrailRecords;
             for (var i = 0; i < removeCount; i++)
             {
-                RemoveTraceIndex(_trailRecords[i]);
-                RemoveUserIndex(_trailRecords[i]);
+                var target = _trailRecords[i];
+                RemoveIndexRecord(_traceIndex, target.TraceId, target);
+                RemoveIndexRecord(_userIndex, target.User, target);
+                RemoveIndexRecord(_pathIndex, target.Path, target, NormalizePathKey);
             }
 
             _trailRecords.RemoveRange(0, removeCount);
@@ -82,6 +87,20 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         }
     }
 
+    public List<AuditTrailRecord> SnapshotTrailSourceByPath(string? path)
+    {
+        lock (_trailLock)
+        {
+            var key = NormalizePathKey(path);
+            if (key is not null && _pathIndex.TryGetValue(key, out var queue))
+            {
+                return [.. queue];
+            }
+
+            return [.. _trailRecords];
+        }
+    }
+
     public void AddReport(ComplianceAuditReportRecord report)
     {
         lock (_reportLock)
@@ -102,60 +121,65 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
         }
     }
 
-    private void AddTraceIndex(AuditTrailRecord record)
+    private static void AddIndexRecord(
+        Dictionary<string, Queue<AuditTrailRecord>> index,
+        string? rawKey,
+        AuditTrailRecord record,
+        Func<string?, string?>? keyNormalizer = null)
     {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
+        var key = keyNormalizer is null
+            ? NormalizeGenericKey(rawKey)
+            : keyNormalizer(rawKey);
+
+        if (key is null)
         {
             return;
         }
 
-        var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue))
+        if (!index.TryGetValue(key, out var queue))
         {
             queue = new Queue<AuditTrailRecord>();
-            _traceIndex[key] = queue;
+            index[key] = queue;
         }
 
         queue.Enqueue(record);
     }
 
-    private void RemoveTraceIndex(AuditTrailRecord record)
+    private static void RemoveIndexRecord(
+        Dictionary<string, Queue<AuditTrailRecord>> index,
+        string? rawKey,
+        AuditTrailRecord record,
+        Func<string?, string?>? keyNormalizer = null)
     {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
+        var key = keyNormalizer is null
+            ? NormalizeGenericKey(rawKey)
+            : keyNormalizer(rawKey);
+
+        if (key is null)
         {
             return;
         }
 
-        var key = record.TraceId.Trim();
-        RemoveQueueRecord(_traceIndex, key, record);
+        RemoveQueueRecord(index, key, record);
     }
 
-    private void AddUserIndex(AuditTrailRecord record)
+    private static string? NormalizeGenericKey(string? rawKey)
+        => string.IsNullOrWhiteSpace(rawKey) ? null : rawKey.Trim();
+
+    private static string? NormalizePathKey(string? rawPath)
     {
-        if (string.IsNullOrWhiteSpace(record.User))
+        if (string.IsNullOrWhiteSpace(rawPath))
         {
-            return;
+            return null;
         }
 
-        var key = record.User.Trim();
-        if (!_userIndex.TryGetValue(key, out var queue))
+        var normalized = rawPath.Trim();
+        if (normalized.Length > 1)
         {
-            queue = new Queue<AuditTrailRecord>();
-            _userIndex[key] = queue;
+            normalized = normalized.TrimEnd('/');
         }
 
-        queue.Enqueue(record);
-    }
-
-    private void RemoveUserIndex(AuditTrailRecord record)
-    {
-        if (string.IsNullOrWhiteSpace(record.User))
-        {
-            return;
-        }
-
-        var key = record.User.Trim();
-        RemoveQueueRecord(_userIndex, key, record);
+        return normalized;
     }
 
     private static void RemoveQueueRecord(Dictionary<string, Queue<AuditTrailRecord>> index, string key, AuditTrailRecord record)
@@ -165,24 +189,13 @@ internal sealed class InMemoryComplianceAuditRepository : IComplianceAuditReposi
             return;
         }
 
-        if (ReferenceEquals(queue.Peek(), record))
+        // 依照 AddTrail/compaction 移除順序，同 key 的 queue 一定維持 FIFO 對齊
+        if (!ReferenceEquals(queue.Peek(), record))
         {
-            queue.Dequeue();
+            return;
         }
-        else
-        {
-            var rebuilt = new Queue<AuditTrailRecord>(queue.Count);
-            while (queue.TryDequeue(out var entry))
-            {
-                if (!ReferenceEquals(entry, record))
-                {
-                    rebuilt.Enqueue(entry);
-                }
-            }
 
-            index[key] = rebuilt;
-            queue = rebuilt;
-        }
+        queue.Dequeue();
 
         if (queue.Count == 0)
         {

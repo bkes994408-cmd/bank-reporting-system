@@ -97,6 +97,179 @@ public class ComplianceAuditRefactorTests
     }
 
     [Fact]
+    public void InMemoryRepository_PathIndex_IsTrimmedWithTrailCompaction_AndNormalizedLookup()
+    {
+        var repository = new InMemoryComplianceAuditRepository();
+
+        for (var i = 0; i < 10005; i++)
+        {
+            repository.AddTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddSeconds(-10005 + i),
+                Method = "GET",
+                Path = i % 2 == 0 ? "/api/items/" : "/api/items",
+                StatusCode = 200
+            });
+        }
+
+        var byPath = repository.SnapshotTrailSourceByPath("/api/items");
+
+        Assert.Equal(10000, byPath.Count);
+    }
+
+    [Fact]
+    public void QueryTrails_PathExact_UsesNormalizedMatchAndSourceOptimization()
+    {
+        var service = new ComplianceAuditService();
+        var now = DateTime.UtcNow;
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-3),
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports/",
+            StatusCode = 200
+        });
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-2),
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports",
+            StatusCode = 200
+        });
+
+        service.RecordAuditTrail(new AuditTrailRecord
+        {
+            TimestampUtc = now.AddMinutes(-1),
+            User = "alice",
+            Method = "GET",
+            Path = "/api/reports/other",
+            StatusCode = 200
+        });
+
+        var payload = service.QueryTrails(new AuditTrailQueryRequest
+        {
+            Path = "/api/reports",
+            PathExact = true,
+            Page = 1,
+            PageSize = 20
+        });
+
+        Assert.Equal(2, payload.Total);
+        Assert.DoesNotContain(payload.Records, x => x.Path == "/api/reports/other");
+    }
+
+    [Fact]
+    public void InMemoryRepository_UserIndex_IsTrimmedWithTrailCompaction_AndCaseInsensitiveLookup()
+    {
+        var repository = new InMemoryComplianceAuditRepository();
+
+        for (var i = 0; i < 10005; i++)
+        {
+            repository.AddTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddSeconds(-10005 + i),
+                User = "  Alice  ",
+                Method = "GET",
+                Path = $"/u/{i}",
+                StatusCode = 200
+            });
+        }
+
+        var byUser = repository.SnapshotTrailSourceByUser("alice");
+
+        Assert.Equal(10000, byUser.Count);
+        Assert.DoesNotContain(byUser, x => x.Path == "/u/0");
+        Assert.Contains(byUser, x => x.Path == "/u/10004");
+    }
+
+    [Fact]
+    public void InMemoryRepository_TraceIndex_RemovesNonHeadRecord_WhenOldestWithoutTraceIsCompacted()
+    {
+        var repository = new InMemoryComplianceAuditRepository();
+
+        repository.AddTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddSeconds(-10001),
+            Method = "GET",
+            Path = "/seed",
+            StatusCode = 200
+        });
+
+        for (var i = 0; i < 10000; i++)
+        {
+            repository.AddTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddSeconds(-10000 + i),
+                TraceId = "trace-non-head",
+                Method = "GET",
+                Path = $"/t/{i}",
+                StatusCode = 200
+            });
+        }
+
+        repository.AddTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow,
+            TraceId = "trace-non-head",
+            Method = "GET",
+            Path = "/latest",
+            StatusCode = 200
+        });
+
+        var traceRecords = repository.SnapshotTraceSource("trace-non-head");
+
+        Assert.Equal(10000, traceRecords.Count);
+        Assert.DoesNotContain(traceRecords, x => x.Path == "/t/0");
+        Assert.Contains(traceRecords, x => x.Path == "/latest");
+    }
+
+    [Fact]
+    public void InMemoryRepository_Compaction_SkipsInvalidIndexRemoval_WhenRecordWasMutatedAfterInsert()
+    {
+        var repository = new InMemoryComplianceAuditRepository();
+        var mutated = new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow.AddSeconds(-10001),
+            TraceId = "trace-a",
+            Method = "GET",
+            Path = "/mutated",
+            StatusCode = 200
+        };
+
+        repository.AddTrail(mutated);
+        mutated.TraceId = "trace-b";
+
+        for (var i = 0; i < 10000; i++)
+        {
+            repository.AddTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddSeconds(-10000 + i),
+                TraceId = "trace-b",
+                Method = "GET",
+                Path = $"/fill/{i}",
+                StatusCode = 200
+            });
+        }
+
+        repository.AddTrail(new AuditTrailRecord
+        {
+            TimestampUtc = DateTime.UtcNow,
+            TraceId = "trace-b",
+            Method = "GET",
+            Path = "/latest",
+            StatusCode = 200
+        });
+
+        var snapshot = repository.SnapshotTraceSource("trace-b");
+        Assert.Equal(10000, snapshot.Count);
+        Assert.Contains(snapshot, x => x.Path == "/latest");
+    }
+
+    [Fact]
     public void GetBehaviorInsights_ReturnsStableSuggestion_WhenNoRiskSignals()
     {
         var service = new ComplianceAuditService();
@@ -305,6 +478,24 @@ public class ComplianceAuditRefactorTests
 
             return Trails
                 .Where(x => string.Equals(x.User, user.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        public List<AuditTrailRecord> SnapshotTrailSourceByPath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return [.. Trails];
+            }
+
+            var normalized = path.Trim().TrimEnd('/');
+            if (normalized.Length == 0)
+            {
+                normalized = "/";
+            }
+
+            return Trails
+                .Where(x => string.Equals((x.Path ?? string.Empty).Trim().TrimEnd('/'), normalized, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
 

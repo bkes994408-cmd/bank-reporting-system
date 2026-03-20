@@ -113,7 +113,7 @@ public class MiddlewareTests
         using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
         var content = await reader.ReadToEndAsync();
         Assert.Contains("\"code\":\"API_5000\"", content);
-        Assert.Contains("\"payload\":null", content);
+        Assert.Contains("\"requestId\":", content);
     }
 
     [Fact]
@@ -134,6 +134,70 @@ public class MiddlewareTests
         using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
         var content = await reader.ReadToEndAsync();
         Assert.Contains("\"code\":\"API_5040\"", content);
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandlingMiddleware_MapsKeyNotFoundException_To404()
+    {
+        var middleware = new ApiExceptionHandlingMiddleware(
+            _ => throw new KeyNotFoundException("missing"),
+            NullLogger<ApiExceptionHandlingMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+        var content = await reader.ReadToEndAsync();
+        Assert.Contains("\"code\":\"API_4040\"", content);
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandlingMiddleware_MapsUnauthorizedAccessException_To403()
+    {
+        var middleware = new ApiExceptionHandlingMiddleware(
+            _ => throw new UnauthorizedAccessException("denied"),
+            NullLogger<ApiExceptionHandlingMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+        var content = await reader.ReadToEndAsync();
+        Assert.Contains("\"code\":\"API_4030\"", content);
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandlingMiddleware_ClientAbort_DoesNotWriteErrorBody()
+    {
+        var middleware = new ApiExceptionHandlingMiddleware(
+            _ => throw new OperationCanceledException("aborted"),
+            NullLogger<ApiExceptionHandlingMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+        context.RequestAborted = cts.Token;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+        var content = await reader.ReadToEndAsync();
+        Assert.True(string.IsNullOrEmpty(content));
     }
 
     [Fact]
