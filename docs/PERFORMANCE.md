@@ -73,7 +73,7 @@ dotnet run --project backend/BankReporting.Api.csproj
 
 > 註：本機數值僅供趨勢觀察；正式容量規劃仍建議在 staging/prod-like 環境進行壓測。
 
-## MVP-7 後續：稽核軌跡查詢基準與壓力測試（2026-03-20）
+## MVP-5/6 穩定性提升：稽核查詢與一致性基準（2026-03-20）
 
 ### 測試目標
 驗證 `ComplianceAuditService.QueryTrace` 在高讀取 + 持續寫入情境下，是否仍維持：
@@ -84,13 +84,27 @@ dotnet run --project backend/BankReporting.Api.csproj
 
 ### 實作內容
 
-1. **新增 BenchmarkDotNet 基準專案**
+1. **新增 / 擴充 BenchmarkDotNet 基準專案**
    - 路徑：`backend.benchmarks/`
    - 基準項目：
      - `QueryTrace_ByTraceId`
      - `QueryTrails_Filtered`
+     - `CheckDataIntegrity_StandardWindow`
 
-2. **新增壓力測試（xUnit）**
+2. **審計查詢效能優化（Service hot path）**
+   - `QueryTrails` 針對「無篩選條件」場景走快速分頁路徑，避免全量比對。
+   - 篩選查詢預先正規化條件（trim / null coalesce）以降低逐筆比對開銷。
+
+3. **Data Integrity Check 強化**
+   - 新增 `riskLevel` 合法性檢查（low/medium/high）。
+   - 新增同一 `traceId` 的 user 一致性與 method/path 一致性檢查。
+   - 新增報告摘要與時間欄位一致性檢查（`uniqueUsers <= totalRequests`、`generatedAtUtc >= endDateUtc`）。
+
+4. **API 錯誤處理強化**
+   - `ApiExceptionHandlingMiddleware` 新增 timeout 類錯誤映射（`API_5040` / HTTP 504）。
+   - `Program.cs` 新增 `InvalidModelStateResponseFactory`，統一模型驗證錯誤回應格式。
+
+5. **新增壓力測試（xUnit）**
    - 檔案：`backend.tests/ComplianceAuditPerformanceTests.cs`
    - 測試項目：
      - `QueryTrace_Benchmark_BaselineUnderLoad`
@@ -112,10 +126,11 @@ dotnet run -c Release --project backend.benchmarks/BankReporting.Benchmarks.cspr
 
 ### 本機結果（Apple Silicon / .NET 10.0.3）
 
-- `dotnet test`：**146 passed / 0 failed**（含壓力測試）
+- `dotnet test`：**163 passed / 0 failed**（含壓力測試與一致性/錯誤處理測試）
 - Benchmark：
-  - `QueryTrace_ByTraceId`：**38.23 us**
-  - `QueryTrails_Filtered`：**453.58 us**
+  - `QueryTrace_ByTraceId`：**15.87 us**
+  - `QueryTrails_Filtered`：**82.77 us**
+  - `CheckDataIntegrity_StandardWindow`：**3.67 ms**
 
 > Benchmark 報表輸出：`BenchmarkDotNet.Artifacts/results/BankReporting.Benchmarks.ComplianceAuditBenchmarks-report-github.md`
 
