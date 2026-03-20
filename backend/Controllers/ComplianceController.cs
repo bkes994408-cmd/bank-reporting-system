@@ -178,6 +178,23 @@ public class ComplianceController : ControllerBase
         });
     }
 
+    [HttpPost("audit-trails/integrity-check")]
+    public IActionResult RunAuditTrailIntegrityCheck([FromBody] DataIntegrityCheckRequest request)
+    {
+        var sanitized = new DataIntegrityCheckRequest
+        {
+            MaxIssues = request.MaxIssues
+        };
+
+        var result = _complianceAuditService.CheckDataIntegrity(sanitized);
+        return Ok(new ApiResponse<AuditDataIntegrityPayload>
+        {
+            Code = "0000",
+            Msg = "資料一致性檢查完成",
+            Payload = result
+        });
+    }
+
     [HttpPost("regulations/snapshots")]
     public IActionResult UpsertRegulationSnapshot([FromBody] RegulationSnapshotUpsertRequest request)
     {

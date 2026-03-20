@@ -1,6 +1,9 @@
+using System.Text;
 using BankReporting.Api.Middleware;
+using BankReporting.Api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace BankReporting.Tests;
@@ -90,6 +93,27 @@ public class MiddlewareTests
 
         Assert.False(called());
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandlingMiddleware_ReturnsStandardizedErrorResponse()
+    {
+        var middleware = new ApiExceptionHandlingMiddleware(
+            _ => throw new Exception("boom"),
+            NullLogger<ApiExceptionHandlingMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+        var content = await reader.ReadToEndAsync();
+        Assert.Contains("\"code\":\"API_5000\"", content);
+        Assert.Contains("\"payload\":null", content);
     }
 
     private static AdminAuthorizationMiddleware BuildMiddleware(out Func<bool> called)
