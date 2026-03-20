@@ -235,6 +235,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var source = _repository.SnapshotTraceSource(request.TraceId);
         var steps = new List<AuditTrailTraceStep>(maxSteps);
 
+        // source 透過 Trace index 時原始順序已是時間序，僅線性掃描即可。
         foreach (var item in source)
         {
             if (!IsTraceMatch(item, request, startUtc, endUtc))
