@@ -1,3 +1,4 @@
+using System.Text;
 using BankReporting.Api.DTOs;
 using BankReporting.Api.Models;
 
@@ -16,40 +17,25 @@ public interface IComplianceAuditService
 
 public class ComplianceAuditService : IComplianceAuditService
 {
-    private const int MaxTrailRecords = 10000;
-    private const int MaxReportRecords = 2000;
+    private readonly IComplianceAuditRepository _repository;
 
-    private readonly object _trailLock = new();
-    private readonly object _reportLock = new();
-    private readonly List<AuditTrailRecord> _trailRecords = [];
-    private readonly Dictionary<string, Queue<AuditTrailRecord>> _traceIndex = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<ComplianceAuditReportRecord> _reports = [];
+    public ComplianceAuditService()
+        : this(new InMemoryComplianceAuditRepository())
+    {
+    }
+
+    internal ComplianceAuditService(IComplianceAuditRepository repository)
+    {
+        _repository = repository;
+    }
 
     public void RecordAuditTrail(AuditTrailRecord record)
-    {
-        lock (_trailLock)
-        {
-            _trailRecords.Add(record);
-            AddTraceIndex(record);
-
-            if (_trailRecords.Count > MaxTrailRecords)
-            {
-                var removeCount = _trailRecords.Count - MaxTrailRecords;
-                for (var i = 0; i < removeCount; i++)
-                {
-                    var removed = _trailRecords[i];
-                    RemoveTraceIndex(removed);
-                }
-
-                _trailRecords.RemoveRange(0, removeCount);
-            }
-        }
-    }
+        => _repository.AddTrail(record);
 
     public Task<ComplianceAuditReportRecord> GenerateReportAsync(ComplianceAuditReportGenerateRequest request, CancellationToken cancellationToken)
     {
         var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
-        var records = SnapshotTrails()
+        var records = _repository.SnapshotTrails()
             .Where(r => r.TimestampUtc >= start && r.TimestampUtc <= end)
             .ToList();
 
@@ -81,15 +67,7 @@ public class ComplianceAuditService : IComplianceAuditService
             TopSensitiveEndpoints = topSensitiveEndpoints
         };
 
-        lock (_reportLock)
-        {
-            _reports.Add(report);
-            if (_reports.Count > MaxReportRecords)
-            {
-                var removeCount = _reports.Count - MaxReportRecords;
-                _reports.RemoveRange(0, removeCount);
-            }
-        }
+        _repository.AddReport(report);
 
         return Task.FromResult(report);
     }
@@ -99,7 +77,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 200);
 
-        var query = SnapshotReports().AsEnumerable();
+        var query = _repository.SnapshotReports().AsEnumerable();
         if (request.FromGeneratedAtUtc.HasValue)
         {
             var fromUtc = request.FromGeneratedAtUtc.Value.ToUniversalTime();
@@ -136,8 +114,7 @@ public class ComplianceAuditService : IComplianceAuditService
         var total = 0;
         var records = new List<AuditTrailRecord>(pageSize);
 
-        // 由新到舊掃描，避免每次查詢都做 full sort。
-        var snapshot = SnapshotTrails();
+        var snapshot = _repository.SnapshotTrails();
         for (var i = snapshot.Count - 1; i >= 0; i--)
         {
             var entry = snapshot[i];
@@ -166,23 +143,55 @@ public class ComplianceAuditService : IComplianceAuditService
     public AuditBehaviorInsightsPayload GetBehaviorInsights(AuditBehaviorInsightsRequest request)
     {
         var (start, end) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(7));
-
-        var records = SnapshotTrails()
-            .Where(r => r.TimestampUtc >= start && r.TimestampUtc <= end)
-            .ToList();
+        var snapshot = _repository.SnapshotTrails();
 
         var topUsers = Math.Clamp(request.TopUsers, 1, 20);
         var topPaths = Math.Clamp(request.TopPaths, 1, 20);
 
-        var userSummaries = records
-            .GroupBy(r => string.IsNullOrWhiteSpace(r.User) ? "anonymous" : r.User, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new AuditBehaviorUserSummary
+        var totalRecords = 0;
+        var sensitiveOperations = 0;
+        var failedRecords = 0;
+        var slowRecords = 0;
+
+        var userStats = new Dictionary<string, AggregateStats>(StringComparer.OrdinalIgnoreCase);
+        var pathStats = new Dictionary<string, AggregateStats>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var record in snapshot)
+        {
+            if (record.TimestampUtc < start || record.TimestampUtc > end)
             {
-                User = g.Key,
-                RequestCount = g.Count(),
-                FailureCount = g.Count(x => x.StatusCode >= 400),
-                SensitiveCount = g.Count(x => x.IsSensitiveOperation),
-                AvgDurationMs = g.Any() ? (long)Math.Round(g.Average(x => x.DurationMs)) : 0
+                continue;
+            }
+
+            totalRecords++;
+            if (record.IsSensitiveOperation)
+            {
+                sensitiveOperations++;
+            }
+
+            if (record.StatusCode >= 400)
+            {
+                failedRecords++;
+            }
+
+            if (record.DurationMs >= 2000)
+            {
+                slowRecords++;
+            }
+
+            var userKey = string.IsNullOrWhiteSpace(record.User) ? "anonymous" : record.User;
+            UpdateAggregate(userStats, userKey, record);
+            UpdateAggregate(pathStats, $"{record.Method} {record.Path}", record);
+        }
+
+        var userSummaries = userStats
+            .Select(x => new AuditBehaviorUserSummary
+            {
+                User = x.Key,
+                RequestCount = x.Value.Count,
+                FailureCount = x.Value.Failures,
+                SensitiveCount = x.Value.Sensitive,
+                AvgDurationMs = x.Value.Count == 0 ? 0 : (long)Math.Round((double)x.Value.TotalDuration / x.Value.Count)
             })
             .OrderByDescending(x => x.RequestCount)
             .ThenByDescending(x => x.FailureCount)
@@ -190,14 +199,13 @@ public class ComplianceAuditService : IComplianceAuditService
             .Take(topUsers)
             .ToList();
 
-        var pathSummaries = records
-            .GroupBy(r => $"{r.Method} {r.Path}")
-            .Select(g => new AuditBehaviorPathSummary
+        var pathSummaries = pathStats
+            .Select(x => new AuditBehaviorPathSummary
             {
-                PathKey = g.Key,
-                RequestCount = g.Count(),
-                FailureCount = g.Count(x => x.StatusCode >= 400),
-                AvgDurationMs = g.Any() ? (long)Math.Round(g.Average(x => x.DurationMs)) : 0
+                PathKey = x.Key,
+                RequestCount = x.Value.Count,
+                FailureCount = x.Value.Failures,
+                AvgDurationMs = x.Value.Count == 0 ? 0 : (long)Math.Round((double)x.Value.TotalDuration / x.Value.Count)
             })
             .OrderByDescending(x => x.RequestCount)
             .ThenByDescending(x => x.FailureCount)
@@ -210,15 +218,12 @@ public class ComplianceAuditService : IComplianceAuditService
             GeneratedAtUtc = DateTime.UtcNow,
             StartDateUtc = start,
             EndDateUtc = end,
-            TotalRecords = records.Count,
-            UniqueUsers = records
-                .Select(r => string.IsNullOrWhiteSpace(r.User) ? "anonymous" : r.User)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count(),
-            SensitiveOperations = records.Count(r => r.IsSensitiveOperation),
+            TotalRecords = totalRecords,
+            UniqueUsers = userStats.Count,
+            SensitiveOperations = sensitiveOperations,
             TopActiveUsers = userSummaries,
             TopPaths = pathSummaries,
-            OptimizationSuggestions = BuildOptimizationSuggestions(records)
+            OptimizationSuggestions = BuildOptimizationSuggestions(totalRecords, failedRecords, slowRecords, sensitiveOperations, pathSummaries)
         };
     }
 
@@ -227,25 +232,44 @@ public class ComplianceAuditService : IComplianceAuditService
         var maxSteps = Math.Clamp(request.MaxSteps, 1, 200);
         var (startUtc, endUtc) = NormalizeRange(request.StartDateUtc, request.EndDateUtc, TimeSpan.FromDays(1));
 
-        var source = SnapshotTraceSource(request.TraceId);
-        var steps = source
-            .Where(x => IsTraceMatch(x, request, startUtc, endUtc))
-            .OrderBy(x => x.TimestampUtc)
-            .ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(x => x.Method, StringComparer.OrdinalIgnoreCase)
-            .Take(maxSteps)
-            .Select(x => new AuditTrailTraceStep
+        var source = _repository.SnapshotTraceSource(request.TraceId);
+        var steps = new List<AuditTrailTraceStep>(maxSteps);
+
+        foreach (var item in source)
+        {
+            if (!IsTraceMatch(item, request, startUtc, endUtc))
             {
-                TimestampUtc = x.TimestampUtc,
-                TraceId = x.TraceId,
-                User = x.User,
-                Method = x.Method,
-                Path = x.Path,
-                StatusCode = x.StatusCode,
-                DurationMs = x.DurationMs,
-                RiskLevel = x.RiskLevel
-            })
-            .ToList();
+                continue;
+            }
+
+            steps.Add(new AuditTrailTraceStep
+            {
+                TimestampUtc = item.TimestampUtc,
+                TraceId = item.TraceId,
+                User = item.User,
+                Method = item.Method,
+                Path = item.Path,
+                StatusCode = item.StatusCode,
+                DurationMs = item.DurationMs,
+                RiskLevel = item.RiskLevel
+            });
+
+            if (steps.Count >= maxSteps)
+            {
+                break;
+            }
+        }
+
+        if (!IsSortedByTimestamp(steps))
+        {
+            steps = steps
+                .OrderBy(x => x.TimestampUtc)
+                .ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Method, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        var visualization = BuildTraceVisualization(steps);
 
         return new AuditTrailTracePayload
         {
@@ -254,15 +278,17 @@ public class ComplianceAuditService : IComplianceAuditService
             StartDateUtc = request.StartDateUtc?.ToUniversalTime(),
             EndDateUtc = request.EndDateUtc?.ToUniversalTime(),
             TotalSteps = steps.Count,
-            Steps = steps
+            Steps = steps,
+            Visualization = visualization,
+            ExplainabilityNotes = BuildTraceExplainabilityNotes(steps)
         };
     }
 
     public AuditDataIntegrityPayload CheckDataIntegrity(DataIntegrityCheckRequest request)
     {
         var maxIssues = Math.Clamp(request.MaxIssues, 1, 1000);
-        var trails = SnapshotTrails();
-        var reports = SnapshotReports();
+        var trails = _repository.SnapshotTrails();
+        var reports = _repository.SnapshotReports();
 
         var issues = new List<AuditDataIntegrityIssue>();
         var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -387,91 +413,6 @@ public class ComplianceAuditService : IComplianceAuditService
         };
     }
 
-    private List<AuditTrailRecord> SnapshotTrails()
-    {
-        lock (_trailLock)
-        {
-            return [.. _trailRecords];
-        }
-    }
-
-    private List<ComplianceAuditReportRecord> SnapshotReports()
-    {
-        lock (_reportLock)
-        {
-            return [.. _reports];
-        }
-    }
-
-    private List<AuditTrailRecord> SnapshotTraceSource(string? traceId)
-    {
-        lock (_trailLock)
-        {
-            if (!string.IsNullOrWhiteSpace(traceId) && _traceIndex.TryGetValue(traceId.Trim(), out var queue))
-            {
-                return [.. queue];
-            }
-
-            return [.. _trailRecords];
-        }
-    }
-
-    private void AddTraceIndex(AuditTrailRecord record)
-    {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
-        {
-            return;
-        }
-
-        var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue))
-        {
-            queue = new Queue<AuditTrailRecord>();
-            _traceIndex[key] = queue;
-        }
-
-        queue.Enqueue(record);
-    }
-
-    private void RemoveTraceIndex(AuditTrailRecord record)
-    {
-        if (string.IsNullOrWhiteSpace(record.TraceId))
-        {
-            return;
-        }
-
-        var key = record.TraceId.Trim();
-        if (!_traceIndex.TryGetValue(key, out var queue) || queue.Count == 0)
-        {
-            return;
-        }
-
-        // 正常情況下 queue 頭端就是要移除的最舊紀錄。
-        if (ReferenceEquals(queue.Peek(), record))
-        {
-            queue.Dequeue();
-        }
-        else
-        {
-            var rebuilt = new Queue<AuditTrailRecord>(queue.Count);
-            while (queue.TryDequeue(out var entry))
-            {
-                if (!ReferenceEquals(entry, record))
-                {
-                    rebuilt.Enqueue(entry);
-                }
-            }
-
-            _traceIndex[key] = rebuilt;
-            queue = rebuilt;
-        }
-
-        if (queue.Count == 0)
-        {
-            _traceIndex.Remove(key);
-        }
-    }
-
     private static bool IsTrailMatch(AuditTrailRecord entry, AuditTrailQueryRequest request, DateTime startUtc, DateTime endUtc)
     {
         if (!string.IsNullOrWhiteSpace(request.User) && !string.Equals(entry.User, request.User.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -562,28 +503,56 @@ public class ComplianceAuditService : IComplianceAuditService
     private static string BuildTrailRef(AuditTrailRecord entry)
         => $"{entry.TimestampUtc:O}|{entry.TraceId}|{entry.Method}|{entry.Path}";
 
-    private static List<string> BuildOptimizationSuggestions(List<AuditTrailRecord> records)
+    private static void UpdateAggregate(Dictionary<string, AggregateStats> bucket, string key, AuditTrailRecord record)
+    {
+        if (!bucket.TryGetValue(key, out var stats))
+        {
+            stats = new AggregateStats();
+            bucket[key] = stats;
+        }
+
+        stats.Count++;
+        stats.TotalDuration += record.DurationMs;
+
+        if (record.StatusCode >= 400)
+        {
+            stats.Failures++;
+        }
+
+        if (record.IsSensitiveOperation)
+        {
+            stats.Sensitive++;
+        }
+    }
+
+    private static List<string> BuildOptimizationSuggestions(
+        int totalRecords,
+        int failedRecords,
+        int slowRecords,
+        int sensitiveOperations,
+        List<AuditBehaviorPathSummary> topPaths)
     {
         var suggestions = new List<string>();
-        if (records.Count == 0)
+        if (totalRecords == 0)
         {
             suggestions.Add("目前時窗內沒有稽核資料，建議先確認 audit trail 留存設定與流量來源。");
             return suggestions;
         }
 
-        var failureRate = records.Count(x => x.StatusCode >= 400) / (double)records.Count;
+        var failureRate = failedRecords / (double)totalRecords;
         if (failureRate >= 0.2)
         {
             suggestions.Add($"失敗率偏高（{failureRate:P0}），建議優先排查高失敗端點並建立重試/回退策略。");
         }
 
-        var slowRate = records.Count(x => x.DurationMs >= 2000) / (double)records.Count;
+        var slowRate = slowRecords / (double)totalRecords;
         if (slowRate >= 0.15)
         {
-            suggestions.Add($"慢請求比例偏高（{slowRate:P0}），建議針對 Top Paths 進行效能分析與快取優化。");
+            var hotspot = topPaths.OrderByDescending(x => x.AvgDurationMs).FirstOrDefault()?.PathKey;
+            suggestions.Add($"慢請求比例偏高（{slowRate:P0}），建議優先分析端點：{hotspot ?? "(無)"}，搭配快取/索引優化。");
         }
 
-        var sensitiveRate = records.Count(x => x.IsSensitiveOperation) / (double)records.Count;
+        var sensitiveRate = sensitiveOperations / (double)totalRecords;
         if (sensitiveRate >= 0.3)
         {
             suggestions.Add($"敏感操作占比高（{sensitiveRate:P0}），建議加強雙人覆核、MFA 與最小權限檢視。");
@@ -595,5 +564,101 @@ public class ComplianceAuditService : IComplianceAuditService
         }
 
         return suggestions;
+    }
+
+    private static AuditTrailTraceVisualization BuildTraceVisualization(List<AuditTrailTraceStep> steps)
+    {
+        var visualization = new AuditTrailTraceVisualization();
+        if (steps.Count == 0)
+        {
+            return visualization;
+        }
+
+        var nodeHits = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var edgeHits = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < steps.Count; i++)
+        {
+            var nodeId = BuildTraceNodeId(steps[i]);
+            nodeHits[nodeId] = nodeHits.TryGetValue(nodeId, out var hit) ? hit + 1 : 1;
+
+            if (i == 0)
+            {
+                continue;
+            }
+
+            var prevNode = BuildTraceNodeId(steps[i - 1]);
+            var edgeKey = $"{prevNode}->{nodeId}";
+            edgeHits[edgeKey] = edgeHits.TryGetValue(edgeKey, out var edgeCount) ? edgeCount + 1 : 1;
+        }
+
+        visualization.Nodes = nodeHits
+            .Select(x => new AuditTraceNode { NodeId = x.Key, Label = x.Key, HitCount = x.Value })
+            .ToList();
+
+        visualization.Edges = edgeHits
+            .Select(x =>
+            {
+                var parts = x.Key.Split("->", 2);
+                return new AuditTraceEdge
+                {
+                    FromNodeId = parts[0],
+                    ToNodeId = parts[1],
+                    TransitionCount = x.Value
+                };
+            })
+            .ToList();
+
+        var builder = new StringBuilder("flowchart LR\n");
+        foreach (var edge in visualization.Edges)
+        {
+            builder.AppendLine($"    \"{edge.FromNodeId}\" -->|{edge.TransitionCount}| \"{edge.ToNodeId}\"");
+        }
+
+        visualization.MermaidFlowchart = builder.ToString().TrimEnd();
+        return visualization;
+    }
+
+    private static List<string> BuildTraceExplainabilityNotes(List<AuditTrailTraceStep> steps)
+    {
+        var notes = new List<string>();
+        if (steps.Count == 0)
+        {
+            notes.Add("查無符合條件的 trace steps。");
+            return notes;
+        }
+
+        var failures = steps.Count(x => x.StatusCode >= 400);
+        var highRisk = steps.Count(x => string.Equals(x.RiskLevel, "high", StringComparison.OrdinalIgnoreCase));
+        var avgDuration = (long)Math.Round(steps.Average(x => x.DurationMs));
+
+        notes.Add($"共 {steps.Count} 個步驟，失敗步驟 {failures} 個，高風險步驟 {highRisk} 個。");
+        notes.Add($"平均耗時 {avgDuration}ms，首步驟時間 {steps.First().TimestampUtc:O}，末步驟時間 {steps.Last().TimestampUtc:O}。");
+
+        return notes;
+    }
+
+    private static string BuildTraceNodeId(AuditTrailTraceStep step)
+        => $"{step.Method} {step.Path}";
+
+    private static bool IsSortedByTimestamp(List<AuditTrailTraceStep> steps)
+    {
+        for (var i = 1; i < steps.Count; i++)
+        {
+            if (steps[i].TimestampUtc < steps[i - 1].TimestampUtc)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private sealed class AggregateStats
+    {
+        public int Count { get; set; }
+        public int Failures { get; set; }
+        public int Sensitive { get; set; }
+        public long TotalDuration { get; set; }
     }
 }

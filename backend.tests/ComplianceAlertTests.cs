@@ -46,8 +46,10 @@ public class ComplianceAlertServiceTests
         });
 
         Assert.True(result.TriggeredAlerts >= 1);
-        Assert.Contains(result.Alerts, x => x.RuleId == "test-failed-requests");
-        Assert.Contains(result.Alerts.SelectMany(x => x.NotifyChannels), x => x == "email");
+        var alert = Assert.Single(result.Alerts.Where(x => x.RuleId == "test-failed-requests"));
+        Assert.Contains(alert.NotifyChannels, x => x == "email");
+        Assert.NotEmpty(alert.Explainability.TriggerReasons);
+        Assert.NotEmpty(alert.Explainability.EvidenceSamples);
     }
 
     [Fact]
@@ -85,6 +87,42 @@ public class ComplianceAlertServiceTests
         var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
 
         Assert.DoesNotContain(result.Alerts, x => x.RuleId == "sensitive-failed-requests");
+    }
+
+    [Fact]
+    public void Evaluate_FailedRequests_WithLowErrorRate_DoesNotTrigger()
+    {
+        var auditService = new ComplianceAuditService();
+        var service = new ComplianceAlertService(auditService);
+
+        service.UpsertRule(new ComplianceAlertRuleUpsertRequest
+        {
+            RuleId = "error-rate-guard",
+            Name = "錯誤率守門",
+            RuleType = "failed_requests",
+            Enabled = true,
+            Severity = "high",
+            Threshold = 3,
+            WindowMinutes = 30,
+            MinErrorRatePercent = 80
+        });
+
+        for (var i = 0; i < 7; i++)
+        {
+            auditService.RecordAuditTrail(new AuditTrailRecord
+            {
+                TimestampUtc = DateTime.UtcNow.AddMinutes(-2),
+                User = "dave",
+                Method = "POST",
+                Path = "/api/declare",
+                StatusCode = i < 3 ? 500 : 200,
+                IsSensitiveOperation = true,
+                RiskLevel = "high"
+            });
+        }
+
+        var result = service.Evaluate(new ComplianceAlertEvaluateRequest());
+        Assert.DoesNotContain(result.Alerts, x => x.RuleId == "error-rate-guard");
     }
 
     [Fact]

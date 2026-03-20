@@ -17,6 +17,7 @@ public class ComplianceAlertService : IComplianceAlertService
     private readonly IComplianceAuditService _complianceAuditService;
     private readonly ConcurrentDictionary<string, ComplianceAlertRule> _rules = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentQueue<ComplianceAlertRecord> _alerts = new();
+    private readonly ConcurrentDictionary<string, DateTime> _lastTriggeredByRuleAndSubject = new(StringComparer.OrdinalIgnoreCase);
 
     public ComplianceAlertService(IComplianceAuditService complianceAuditService)
     {
@@ -42,6 +43,14 @@ public class ComplianceAlertService : IComplianceAlertService
             WindowMinutes = Math.Clamp(request.WindowMinutes, 1, 24 * 60),
             RiskLevel = string.IsNullOrWhiteSpace(request.RiskLevel) ? null : request.RiskLevel.Trim().ToLowerInvariant(),
             SensitiveOnly = request.SensitiveOnly,
+            MinErrorRatePercent = Math.Clamp(request.MinErrorRatePercent, 0, 100),
+            MinDistinctPaths = Math.Max(1, request.MinDistinctPaths),
+            CooldownMinutes = Math.Clamp(request.CooldownMinutes, 0, 24 * 60),
+            ExcludedPaths = (request.ExcludedPaths ?? [])
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             UpdatedAtUtc = now
         };
 
@@ -111,7 +120,13 @@ public class ComplianceAlertService : IComplianceAlertService
                 continue;
             }
 
+            if (IsInCooldown(rule, alert.Subject, alert.TriggeredAtUtc))
+            {
+                continue;
+            }
+
             _alerts.Enqueue(alert);
+            _lastTriggeredByRuleAndSubject[BuildCooldownKey(rule.RuleId, alert.Subject)] = alert.TriggeredAtUtc;
             generated.Add(alert);
         }
 
@@ -170,51 +185,200 @@ public class ComplianceAlertService : IComplianceAlertService
 
     private ComplianceAlertRecord? EvaluateRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
     {
-        var candidateRecords = rule.SensitiveOnly
-            ? records.Where(x => x.IsSensitiveOperation).ToList()
-            : records;
+        var candidateRecords = records
+            .Where(x => !IsPathExcluded(rule, x.Path))
+            .ToList();
 
-        IEnumerable<IGrouping<string, AuditTrailRecord>> grouped = Enumerable.Empty<IGrouping<string, AuditTrailRecord>>();
-
-        switch (rule.RuleType)
+        if (rule.SensitiveOnly)
         {
-            case "failed_requests":
-                grouped = candidateRecords
-                    .Where(x => x.StatusCode >= 400)
-                    .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
-                break;
-            case "high_risk_operations":
-                grouped = candidateRecords
-                    .Where(x => string.Equals(x.RiskLevel, rule.RiskLevel ?? "high", StringComparison.OrdinalIgnoreCase))
-                    .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
-                break;
-            case "off_hours_sensitive":
-                grouped = candidateRecords
-                    .Where(x => x.IsSensitiveOperation && (x.TimestampUtc.Hour < 6 || x.TimestampUtc.Hour >= 22))
-                    .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase);
-                break;
-            default:
-                return null;
+            candidateRecords = candidateRecords.Where(x => x.IsSensitiveOperation).ToList();
         }
 
-        var triggered = grouped
-            .Where(g => g.Count() >= rule.Threshold)
-            .OrderByDescending(g => g.Count())
-            .FirstOrDefault();
-
-        if (triggered is null)
+        if (candidateRecords.Count == 0)
         {
             return null;
         }
 
-        var triggerCount = triggered.Count();
-        var topPaths = triggered
+        switch (rule.RuleType)
+        {
+            case "failed_requests":
+                return EvaluateFailedRequestsRule(rule, candidateRecords, notifyChannels);
+            case "high_risk_operations":
+                return EvaluateHighRiskRule(rule, candidateRecords, notifyChannels);
+            case "off_hours_sensitive":
+                return EvaluateOffHoursRule(rule, candidateRecords, notifyChannels);
+            default:
+                return null;
+        }
+    }
+
+    private static ComplianceAlertRecord? EvaluateFailedRequestsRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
+    {
+        var grouped = records
+            .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var failed = g.Where(x => x.StatusCode >= 400).ToList();
+                var total = g.Count();
+                var distinctPaths = failed.Select(x => x.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                var errorRate = total == 0 ? 0 : failed.Count * 100.0 / total;
+                return new
+                {
+                    User = g.Key,
+                    Failed = failed,
+                    Total = total,
+                    DistinctPaths = distinctPaths,
+                    ErrorRate = errorRate
+                };
+            })
+            .Where(x => x.Failed.Count >= rule.Threshold)
+            .Where(x => x.DistinctPaths >= rule.MinDistinctPaths)
+            .Where(x => x.ErrorRate >= rule.MinErrorRatePercent)
+            .OrderByDescending(x => x.Failed.Count)
+            .ThenByDescending(x => x.ErrorRate)
+            .FirstOrDefault();
+
+        if (grouped is null)
+        {
+            return null;
+        }
+
+        var topPaths = grouped.Failed
             .GroupBy(x => x.Path)
             .OrderByDescending(g => g.Count())
             .Take(3)
             .Select(g => $"{g.Key}({g.Count()})")
             .ToList();
 
+        var explainability = new ComplianceAlertExplainability
+        {
+            TriggerReasons =
+            [
+                $"失敗請求次數達門檻（{grouped.Failed.Count} >= {rule.Threshold}）",
+                $"錯誤率達門檻（{grouped.ErrorRate:F1}% >= {rule.MinErrorRatePercent}%）",
+                $"影響端點數達門檻（{grouped.DistinctPaths} >= {rule.MinDistinctPaths}）"
+            ],
+            Metrics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["failedCount"] = grouped.Failed.Count.ToString(),
+                ["totalCount"] = grouped.Total.ToString(),
+                ["errorRatePercent"] = grouped.ErrorRate.ToString("F1"),
+                ["distinctPaths"] = grouped.DistinctPaths.ToString()
+            },
+            EvidenceSamples = grouped.Failed
+                .OrderByDescending(x => x.TimestampUtc)
+                .Take(3)
+                .Select(x => $"{x.TimestampUtc:O} {x.Method} {x.Path} {x.StatusCode}")
+                .ToList()
+        };
+
+        return BuildAlert(rule, grouped.User, grouped.Failed.Count, topPaths, notifyChannels, explainability);
+    }
+
+    private static ComplianceAlertRecord? EvaluateHighRiskRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
+    {
+        var grouped = records
+            .Where(x => string.Equals(x.RiskLevel, rule.RiskLevel ?? "high", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new
+            {
+                User = g.Key,
+                Records = g.ToList(),
+                DistinctPaths = g.Select(x => x.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count()
+            })
+            .Where(x => x.Records.Count >= rule.Threshold)
+            .Where(x => x.DistinctPaths >= rule.MinDistinctPaths)
+            .OrderByDescending(x => x.Records.Count)
+            .FirstOrDefault();
+
+        if (grouped is null)
+        {
+            return null;
+        }
+
+        var topPaths = grouped.Records
+            .GroupBy(x => x.Path)
+            .OrderByDescending(g => g.Count())
+            .Take(3)
+            .Select(g => $"{g.Key}({g.Count()})")
+            .ToList();
+
+        var explainability = new ComplianceAlertExplainability
+        {
+            TriggerReasons =
+            [
+                $"高風險操作次數達門檻（{grouped.Records.Count} >= {rule.Threshold}）",
+                $"影響端點數達門檻（{grouped.DistinctPaths} >= {rule.MinDistinctPaths}）"
+            ],
+            Metrics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["highRiskCount"] = grouped.Records.Count.ToString(),
+                ["distinctPaths"] = grouped.DistinctPaths.ToString()
+            },
+            EvidenceSamples = grouped.Records.OrderByDescending(x => x.TimestampUtc).Take(3)
+                .Select(x => $"{x.TimestampUtc:O} {x.Method} {x.Path} risk={x.RiskLevel}")
+                .ToList()
+        };
+
+        return BuildAlert(rule, grouped.User, grouped.Records.Count, topPaths, notifyChannels, explainability);
+    }
+
+    private static ComplianceAlertRecord? EvaluateOffHoursRule(ComplianceAlertRule rule, List<AuditTrailRecord> records, List<string> notifyChannels)
+    {
+        var grouped = records
+            .Where(x => x.IsSensitiveOperation && (x.TimestampUtc.Hour < 6 || x.TimestampUtc.Hour >= 22))
+            .GroupBy(x => x.User, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new
+            {
+                User = g.Key,
+                Records = g.ToList(),
+                DistinctPaths = g.Select(x => x.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count()
+            })
+            .Where(x => x.Records.Count >= rule.Threshold)
+            .Where(x => x.DistinctPaths >= rule.MinDistinctPaths)
+            .OrderByDescending(x => x.Records.Count)
+            .FirstOrDefault();
+
+        if (grouped is null)
+        {
+            return null;
+        }
+
+        var topPaths = grouped.Records
+            .GroupBy(x => x.Path)
+            .OrderByDescending(g => g.Count())
+            .Take(3)
+            .Select(g => $"{g.Key}({g.Count()})")
+            .ToList();
+
+        var explainability = new ComplianceAlertExplainability
+        {
+            TriggerReasons =
+            [
+                $"夜間敏感操作次數達門檻（{grouped.Records.Count} >= {rule.Threshold}）",
+                $"影響端點數達門檻（{grouped.DistinctPaths} >= {rule.MinDistinctPaths}）"
+            ],
+            Metrics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["offHoursSensitiveCount"] = grouped.Records.Count.ToString(),
+                ["distinctPaths"] = grouped.DistinctPaths.ToString()
+            },
+            EvidenceSamples = grouped.Records.OrderByDescending(x => x.TimestampUtc).Take(3)
+                .Select(x => $"{x.TimestampUtc:O} {x.Method} {x.Path} sensitive={x.IsSensitiveOperation}")
+                .ToList()
+        };
+
+        return BuildAlert(rule, grouped.User, grouped.Records.Count, topPaths, notifyChannels, explainability);
+    }
+
+    private static ComplianceAlertRecord BuildAlert(
+        ComplianceAlertRule rule,
+        string subject,
+        int triggerCount,
+        List<string> topPaths,
+        List<string> notifyChannels,
+        ComplianceAlertExplainability explainability)
+    {
         return new ComplianceAlertRecord
         {
             AlertId = $"alert-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32],
@@ -225,18 +389,40 @@ public class ComplianceAlertService : IComplianceAlertService
             TriggeredAtUtc = DateTime.UtcNow,
             WindowMinutes = rule.WindowMinutes,
             TriggerCount = triggerCount,
-            Subject = triggered.Key,
+            Subject = subject,
             SuggestedAction = BuildSuggestedAction(rule, triggerCount),
             TriggerDetails = new List<string>
             {
-                $"user={triggered.Key}",
+                $"user={subject}",
                 $"count={triggerCount}",
                 $"windowMinutes={rule.WindowMinutes}",
                 $"topPaths={string.Join(",", topPaths)}"
             },
-            NotifyChannels = notifyChannels.Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            NotifyChannels = notifyChannels.Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Explainability = explainability
         };
     }
+
+    private bool IsInCooldown(ComplianceAlertRule rule, string subject, DateTime nowUtc)
+    {
+        if (rule.CooldownMinutes <= 0)
+        {
+            return false;
+        }
+
+        if (!_lastTriggeredByRuleAndSubject.TryGetValue(BuildCooldownKey(rule.RuleId, subject), out var previousAt))
+        {
+            return false;
+        }
+
+        return previousAt.AddMinutes(rule.CooldownMinutes) > nowUtc;
+    }
+
+    private static string BuildCooldownKey(string ruleId, string subject)
+        => $"{ruleId}|{subject}";
+
+    private static bool IsPathExcluded(ComplianceAlertRule rule, string path)
+        => rule.ExcludedPaths.Any(x => path.Contains(x, StringComparison.OrdinalIgnoreCase));
 
     private static string BuildSuggestedAction(ComplianceAlertRule rule, int triggerCount)
     {
@@ -284,7 +470,11 @@ public class ComplianceAlertService : IComplianceAlertService
             Severity = "high",
             Threshold = 5,
             WindowMinutes = 15,
-            SensitiveOnly = false
+            SensitiveOnly = false,
+            MinErrorRatePercent = 50,
+            MinDistinctPaths = 1,
+            CooldownMinutes = 10,
+            ExcludedPaths = ["/health", "/metrics"]
         });
 
         UpsertRule(new ComplianceAlertRuleUpsertRequest
@@ -297,7 +487,9 @@ public class ComplianceAlertService : IComplianceAlertService
             Threshold = 3,
             WindowMinutes = 30,
             RiskLevel = "high",
-            SensitiveOnly = false
+            SensitiveOnly = false,
+            MinDistinctPaths = 1,
+            CooldownMinutes = 5
         });
 
         UpsertRule(new ComplianceAlertRuleUpsertRequest
@@ -309,7 +501,9 @@ public class ComplianceAlertService : IComplianceAlertService
             Severity = "medium",
             Threshold = 2,
             WindowMinutes = 120,
-            SensitiveOnly = true
+            SensitiveOnly = true,
+            MinDistinctPaths = 1,
+            CooldownMinutes = 15
         });
     }
 }
