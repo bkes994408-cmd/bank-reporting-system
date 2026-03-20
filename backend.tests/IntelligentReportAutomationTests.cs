@@ -68,6 +68,36 @@ public class IntelligentReportAutomationServiceTests
         Assert.Contains(result.ValidationWarnings, x => x.Contains("sourceData"));
     }
 
+
+    [Fact]
+    public async Task AutoGenerateAndSubmitAsync_WithPredictiveEnabled_AttachesRiskSnapshot()
+    {
+        var service = new IntelligentReportAutomationService(new SuccessAgentService(), new StubPredictiveRiskService());
+
+        var result = await service.AutoGenerateAndSubmitAsync(new IntelligentReportAutoSubmitRequest
+        {
+            BankCode = "0070000",
+            BankName = "第一銀行",
+            ReportYear = "114",
+            ReportMonth = "03",
+            ReportId = "AI302",
+            ContractorName = "王小明",
+            ContractorTel = "02-12345678",
+            ContractorEmail = "ops@example.com",
+            ManagerName = "陳主管",
+            ManagerTel = "02-12345679",
+            ManagerEmail = "manager@example.com",
+            DryRun = true,
+            EnablePredictiveRiskAssessment = true,
+            PredictiveForecastDays = 10
+        }, CancellationToken.None);
+
+        Assert.NotNull(result.PredictiveRisk);
+        Assert.Equal("high", result.PredictiveRisk!.PredictedRiskLevel);
+        Assert.Equal("rising", result.PredictiveRisk.TrendDirection);
+        Assert.Contains(result.ValidationWarnings, x => x.Contains("預測風險等級"));
+    }
+
     [Fact]
     public async Task AutoGenerateAndSubmitAsync_WithUnsupportedReport_Throws()
     {
@@ -168,4 +198,31 @@ file sealed class FailAgentService : IAgentService
     public Task<ApiResponse<NewsPayload>> GetNewsAsync(NewsRequest request) => Task.FromResult(new ApiResponse<NewsPayload>());
     public Task<ApiResponse<object>> ValidateKeysAsync() => Task.FromResult(new ApiResponse<object>());
     public Task<byte[]> DownloadAttachmentAsync(AttachmentDownloadRequest request) => Task.FromResult(Array.Empty<byte>());
+}
+
+
+file sealed class StubPredictiveRiskService : IPredictiveComplianceRiskService
+{
+    public PredictiveComplianceRiskReport Assess(PredictiveComplianceRiskAssessRequest request) => new()
+    {
+        AssessmentId = "pred-test-1",
+        GeneratedAtUtc = DateTime.UtcNow,
+        LookbackDays = request.LookbackDays,
+        ForecastDays = request.ForecastDays,
+        PredictedRiskLevel = "high",
+        RiskScore = 77,
+        ConfidenceScore = 72,
+        TrendForecast = new PredictiveComplianceRiskTrendForecast
+        {
+            Direction = "rising",
+            SlopePerDay = 2.8,
+            ProjectedAverageRiskScore = 79,
+            ProjectedPeakRiskScore = 84,
+            Points = new List<PredictiveComplianceRiskTrendPoint>()
+        },
+        EarlyWarnings = new List<string> { "測試預警" },
+        RecommendedActions = new List<string> { "測試建議" }
+    };
+
+    public PredictiveComplianceRiskQueryPayload Query(PredictiveComplianceRiskQueryRequest request) => new();
 }

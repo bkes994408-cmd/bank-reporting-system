@@ -67,6 +67,8 @@ public class PredictiveComplianceRiskServiceTests
         Assert.True(report.ConfidenceScore >= 40);
         Assert.Contains(report.Factors, x => x.FactorKey == "regulation_change_pressure");
         Assert.Contains(report.Factors, x => x.FactorKey == "regulation_change_pressure" && x.Score > 0);
+        Assert.NotNull(report.TrendForecast);
+        Assert.Equal(14, report.TrendForecast.Points.Count);
     }
 
     [Fact]
@@ -110,6 +112,7 @@ public class PredictiveComplianceRiskServiceTests
 
         Assert.Contains(report.Factors, x => x.FactorKey == "real_time_market_stress");
         Assert.Contains(report.Factors, x => x.FactorKey == "real_time_market_stress" && x.Score >= 70);
+        Assert.Contains(report.Factors, x => x.FactorKey == "risk_trend_acceleration");
     }
 }
 

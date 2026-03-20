@@ -350,9 +350,28 @@ public class PredictiveComplianceRiskReport
     public string PredictedRiskLevel { get; set; } = "low";
     public int RiskScore { get; set; }
     public int ConfidenceScore { get; set; }
+    public PredictiveComplianceRiskTrendForecast TrendForecast { get; set; } = new();
     public List<PredictiveComplianceRiskFactor> Factors { get; set; } = new();
     public List<string> EarlyWarnings { get; set; } = new();
     public List<string> RecommendedActions { get; set; } = new();
+}
+
+
+
+public class PredictiveComplianceRiskTrendPoint
+{
+    public DateTime DateUtc { get; set; }
+    public int PredictedRiskScore { get; set; }
+    public string PredictedRiskLevel { get; set; } = "low";
+}
+
+public class PredictiveComplianceRiskTrendForecast
+{
+    public string Direction { get; set; } = "stable";
+    public double SlopePerDay { get; set; }
+    public int ProjectedAverageRiskScore { get; set; }
+    public int ProjectedPeakRiskScore { get; set; }
+    public List<PredictiveComplianceRiskTrendPoint> Points { get; set; } = new();
 }
 
 public class PredictiveComplianceRiskQueryPayload
@@ -412,7 +431,21 @@ public class IntelligentReportSubmissionRecord
     public string? RequestId { get; set; }
     public string? SubmissionCode { get; set; }
     public string? SubmissionMessage { get; set; }
+    public IntelligentReportRiskAssessmentSnapshot? PredictiveRisk { get; set; }
     public List<string> ValidationWarnings { get; set; } = new();
+}
+
+
+
+public class IntelligentReportRiskAssessmentSnapshot
+{
+    public string AssessmentId { get; set; } = string.Empty;
+    public string PredictedRiskLevel { get; set; } = "low";
+    public int RiskScore { get; set; }
+    public int ConfidenceScore { get; set; }
+    public string TrendDirection { get; set; } = "stable";
+    public List<string> EarlyWarnings { get; set; } = new();
+    public List<string> RecommendedActions { get; set; } = new();
 }
 
 public class IntelligentReportSubmissionQueryPayload

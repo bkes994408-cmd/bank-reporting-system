@@ -20,11 +20,15 @@ public class IntelligentReportAutomationService : IIntelligentReportAutomationSe
     };
 
     private readonly IAgentService _agentService;
+    private readonly IPredictiveComplianceRiskService? _predictiveComplianceRiskService;
     private readonly ConcurrentQueue<IntelligentReportSubmissionRecord> _records = new();
 
-    public IntelligentReportAutomationService(IAgentService agentService)
+    public IntelligentReportAutomationService(
+        IAgentService agentService,
+        IPredictiveComplianceRiskService? predictiveComplianceRiskService = null)
     {
         _agentService = agentService;
+        _predictiveComplianceRiskService = predictiveComplianceRiskService;
     }
 
     public async Task<IntelligentReportSubmissionRecord> AutoGenerateAndSubmitAsync(IntelligentReportAutoSubmitRequest request, CancellationToken cancellationToken)
@@ -54,6 +58,8 @@ public class IntelligentReportAutomationService : IIntelligentReportAutomationSe
             RequestId = requestId,
             Status = request.DryRun ? "dry-run" : "generated"
         };
+
+        AttachPredictiveRiskSnapshot(request, record);
 
         if (!request.DryRun)
         {
@@ -127,6 +133,42 @@ public class IntelligentReportAutomationService : IIntelligentReportAutomationSe
             PageSize = pageSize,
             Records = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList()
         };
+    }
+
+    private void AttachPredictiveRiskSnapshot(IntelligentReportAutoSubmitRequest request, IntelligentReportSubmissionRecord record)
+    {
+        if (!request.EnablePredictiveRiskAssessment || _predictiveComplianceRiskService is null)
+        {
+            return;
+        }
+
+        var assessment = _predictiveComplianceRiskService.Assess(new PredictiveComplianceRiskAssessRequest
+        {
+            LookbackDays = request.PredictiveLookbackDays,
+            ForecastDays = request.PredictiveForecastDays,
+            FocusAreas = request.PredictiveFocusAreas
+        });
+
+        record.PredictiveRisk = new IntelligentReportRiskAssessmentSnapshot
+        {
+            AssessmentId = assessment.AssessmentId,
+            PredictedRiskLevel = assessment.PredictedRiskLevel,
+            RiskScore = assessment.RiskScore,
+            ConfidenceScore = assessment.ConfidenceScore,
+            TrendDirection = assessment.TrendForecast.Direction,
+            EarlyWarnings = assessment.EarlyWarnings.Take(3).ToList(),
+            RecommendedActions = assessment.RecommendedActions.Take(3).ToList()
+        };
+
+        if (assessment.PredictedRiskLevel is "high" or "critical")
+        {
+            record.ValidationWarnings.Add($"預測風險等級={assessment.PredictedRiskLevel}（score={assessment.RiskScore}），建議提交前由合規主管覆核。");
+        }
+
+        if (assessment.TrendForecast.Direction is "rising" or "rising_fast")
+        {
+            record.ValidationWarnings.Add($"預測風險走勢上升（slope/day={assessment.TrendForecast.SlopePerDay:F2}），建議在報告備註納入風險趨勢說明。");
+        }
     }
 
     private static object GenerateStandardizedReport(string reportId, Dictionary<string, object>? sourceData, DateTime generatedAtUtc)

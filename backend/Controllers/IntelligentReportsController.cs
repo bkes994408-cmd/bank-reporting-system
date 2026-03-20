@@ -33,6 +33,14 @@ public class IntelligentReportsController : ControllerBase
             ManagerTel = request.ManagerTel?.Trim() ?? string.Empty,
             ManagerEmail = request.ManagerEmail?.Trim() ?? string.Empty,
             DryRun = request.DryRun,
+            EnablePredictiveRiskAssessment = request.EnablePredictiveRiskAssessment,
+            PredictiveLookbackDays = request.PredictiveLookbackDays,
+            PredictiveForecastDays = request.PredictiveForecastDays,
+            PredictiveFocusAreas = request.PredictiveFocusAreas?
+                .Select(x => x?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Cast<string>()
+                .ToList(),
             SourceData = request.SourceData
         };
 
