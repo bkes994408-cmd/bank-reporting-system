@@ -1,14 +1,51 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="銀行監理資料數位申報系統 - 提供金融機構進行報表申報、查詢及管理功能" />
-    <title>銀行監理資料數位申報系統</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bank Reporting Admin</title>
+  <style>body{font-family:system-ui;margin:24px} input,button{margin:4px;padding:6px} pre{background:#f5f5f5;padding:12px;white-space:pre-wrap}</style>
+</head>
+<body>
+  <h1>Bank Reporting Console</h1>
+  <div>
+    <input id="email" placeholder="email" value="admin@bank.local" />
+    <input id="password" placeholder="password" type="password" value="Admin#12345678" />
+    <button onclick="login()">Login</button>
+  </div>
+  <div>
+    <button onclick="loadUsers()">Admin Users</button>
+    <button onclick="loadAudit()">Audit Logs</button>
+  </div>
+  <pre id="out">Ready</pre>
+
+  <script>
+    let token = '';
+    async function api(path, opt = {}) {
+      const res = await fetch('http://localhost:5000' + path, {
+        ...opt,
+        headers: { 'Content-Type': 'application/json', ...(token ? {'X-Auth-Token': token} : {}), ...(opt.headers||{}) }
+      });
+      const text = await res.text();
+      try { return { ok: res.ok, status: res.status, body: JSON.parse(text) }; } catch { return { ok: res.ok, status: res.status, body: text }; }
+    }
+
+    async function login() {
+      const body = { email: email.value, password: password.value };
+      const r = await api('/auth/login', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) token = r.body.token;
+      out.textContent = JSON.stringify(r, null, 2);
+    }
+
+    async function loadUsers() {
+      const r = await api('/admin/users');
+      out.textContent = JSON.stringify(r, null, 2);
+    }
+
+    async function loadAudit() {
+      const r = await api('/admin/audit-logs');
+      out.textContent = JSON.stringify(r, null, 2);
+    }
+  </script>
+</body>
 </html>
